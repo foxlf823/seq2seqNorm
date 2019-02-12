@@ -178,7 +178,8 @@ def prepare_data_for_one_document(document, abbr_dict):
 
         datapoint = {} # one entity is a datapoint
 
-        encoder_sent = []
+        encoder_sent = [] # mention and its context (optional)
+        decoder_sent = [] # concept preferred name
 
         original_sentence = document.sentences[entity.sent_idx]
 
@@ -191,13 +192,18 @@ def prepare_data_for_one_document(document, abbr_dict):
             for pw in precessed_words:
                 encoder_sent.append(pw)
 
-        pass
+        if len(encoder_sent) == 0:
+            raise RuntimeError("len(encoder_sent) == 0")
+
+        if len(decoder_sent) == 0:
+            raise RuntimeError("len(decoder_sent) == 0")
 
 
 
 def prepare_data(documents, abbr_dict):
     datapoints = []
     for document in documents:
+        logging.debug("prepare_data for {}".format(document.name))
         datapoints_for_one_doc = prepare_data_for_one_document(document, abbr_dict)
         datapoints.extend(datapoints_for_one_doc)
 
