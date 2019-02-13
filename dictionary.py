@@ -1,27 +1,32 @@
 import codecs
 from fox_tokenizer import FoxTokenizer
 from sortedcontainers import SortedSet
-from preprocess import word_process
 from my_utils import setList
+from options import opt, config
 
 
-# this function returned a SortedSet, so it helps cleaning the dictionary.
-def name_process(name, doc_abbr_dict):
-    ret_words = SortedSet()
-
-    tmp_tokens = FoxTokenizer.tokenize(0, name, True)
-    for token in tmp_tokens:
-        precessed_words = word_process(token, doc_abbr_dict)
-
-        for pw in precessed_words:
-            ret_words.add(pw)
-
-    return ret_words
 
 class CTD_Dict():
     def __init__(self):
         self.name2id = {} # preferred name -> id
         self.id2name = {} # id -> CTD_Term
+        self.altid2id = {} # alternative id -> id
+
+    # given id, return prefered name (list of tokens)
+    def getPreferName(self, id):
+        if id in self.id2name:
+            term = self.id2name.get(id)
+            return term.preferred_name
+        else:
+            if id in self.altid2id:
+                primary_id = self.altid2id[id]
+                term = self.id2name.get(primary_id)
+                return term.preferred_name
+            else:
+                raise RuntimeError("can't find id")
+
+
+
 
 class CTD_Term():
     def __init__(self):
@@ -38,6 +43,19 @@ def tokenlist2key(token_list):
 
     return ret
 
+from preprocess import word_process
+# this function returned a SortedSet, so it helps cleaning the dictionary.
+def name_process(name, doc_abbr_dict):
+    ret_words = SortedSet()
+
+    tmp_tokens = FoxTokenizer.tokenize(0, name, True)
+    for token in tmp_tokens:
+        precessed_words = word_process(token, doc_abbr_dict)
+
+        for pw in precessed_words:
+            ret_words.add(pw)
+
+    return ret_words
 
 def load_ctd(file_path):
 
@@ -63,7 +81,10 @@ def load_ctd(file_path):
             ParentTreeNumbers = columns[6]
             Synonyms = columns[7]
 
-            DiseaseID = columns[1].split(':')[1]
+            if DiseaseID.find('MESH') == -1:
+                raise RuntimeError("DiseaseID.find('MESH') == -1")
+
+            DiseaseID = DiseaseID.split(':')[1]
             DiseaseName = name_process(DiseaseName, None)  # assume there are no abbr in the CTD
             if len(DiseaseName) == 0:
                 raise RuntimeError("len(DiseaseName) == 0")
@@ -93,13 +114,23 @@ def load_ctd(file_path):
 
             dictionary.id2name[DiseaseID] = term
 
+            if AltDiseaseIDs != '':
+                if AltDiseaseIDs.find('OMIM') == -1:
+                    raise RuntimeError("AltDiseaseIDs.find('OMIM') == -1")
+
+                AltDiseaseIDs = AltDiseaseIDs.split(':')[1]
+                if AltDiseaseIDs in dictionary.altid2id:
+                    raise RuntimeError('AltDiseaseIDs in dictionary.altid2id')
+                else:
+                    dictionary.altid2id[AltDiseaseIDs] = DiseaseID
+
 
 
     return dictionary
 
 
 
-
+dictionary = load_ctd(config['norm_dict'])
 
 
 if __name__ == '__main__':

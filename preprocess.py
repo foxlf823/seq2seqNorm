@@ -9,6 +9,8 @@ nlp_tool = nltk.data.load('tokenizers/punkt/english.pickle')
 import logging
 from my_utils import setMapMap
 from stopword import stop_word
+from options import opt
+
 
 def load_data_pubtator(file_path):
 
@@ -97,6 +99,25 @@ def load_data_pubtator(file_path):
                 if entity.sent_idx == -1:
                     raise RuntimeError("can't find entity.sent_idx")
 
+                tkStart = -1
+                tkEnd = -1
+                for tkidx, token_dict in enumerate(document.sentences[entity.sent_idx]):
+                    if token_dict['start'] == entity.spans[0][0]:
+                        tkStart = tkidx
+
+                    if token_dict['end'] == entity.spans[0][1]:
+                        tkEnd = tkidx
+
+                    if tkStart != -1 and tkEnd != -1:
+                        break
+
+                if tkStart == -1 or tkEnd == -1:
+                    raise RuntimeError('tkStart == -1 or tkEnd == -1')
+
+                entity.tkSpans.append([tkStart, tkEnd])
+
+
+
                 document.entities.append(entity)
                 ct_entity += 1
 
@@ -170,6 +191,8 @@ def word_process(word, doc_abbr_dict):
 
     return ret_words
 
+from dictionary import dictionary
+
 def prepare_data_for_one_document(document, abbr_dict):
     datapoints = []
     doc_abbr_dict = abbr_dict.get(document.name) # doc_abbr_dict may be none
@@ -178,28 +201,80 @@ def prepare_data_for_one_document(document, abbr_dict):
 
         datapoint = {} # one entity is a datapoint
 
-        encoder_sent = [] # mention and its context (optional)
-        decoder_sent = [] # concept preferred name
+        encoder_word = [] # mention and its context (optional)
+        encoder_position = [] # different mentions may have the same context, so we use positions to distinguish them
+        if opt.use_char:
+            encoder_char = [] # list of list
 
         original_sentence = document.sentences[entity.sent_idx]
 
-        for token_dict in original_sentence:
-            start = token_dict['start']
-            end = token_dict['end']
+        for tkidx, token_dict in enumerate(original_sentence):
+            # start = token_dict['start']
+            # end = token_dict['end']
             word = token_dict['text']
+
+            # position is a relative distance from the token to the target entity
+            if tkidx < entity.tkSpans[0][0]:
+                position = tkidx-entity.tkSpans[0][0]
+            elif tkidx > entity.tkSpans[0][1]:
+                position = tkidx - entity.tkSpans[0][1]
+            else:
+                position = 0
+
             precessed_words = word_process(word, doc_abbr_dict)
 
             for pw in precessed_words:
-                encoder_sent.append(pw)
+                encoder_word.append(pw)
+                encoder_position.append(position) # all the tokens generated from the current word use the same position.
 
-        if len(encoder_sent) == 0:
+                if opt.use_char:
+                    char_of_the_word = []
+                    for ch in pw:
+                        char_of_the_word.append(ch)
+
+                    encoder_char.append(char_of_the_word)
+
+        if len(encoder_word) == 0:
             raise RuntimeError("len(encoder_sent) == 0")
 
-        if len(decoder_sent) == 0:
+        datapoint['enc_word'] = encoder_word
+        datapoint['enc_pos'] = encoder_position
+        if opt.use_char:
+            datapoint['enc_char'] = encoder_char
+
+        decoder_word = []  # concept preferred name
+        for i, id in enumerate(entity.norm_ids):
+            if i == len(entity.norm_ids) -1:
+                decoder_word.extend(dictionary.getPreferName(id))
+            else:
+                decoder_word.extend(dictionary.getPreferName(id))
+                decoder_word.append('|') # use | to seperate different preferred names
+
+        if len(decoder_word) == 0:
             raise RuntimeError("len(decoder_sent) == 0")
 
+        decoder_word.insert(0, '<SOS>') # this is used for teacher-forcing training
+        decoder_word.append('<EOS>') # this is used for determing when decoding should end
+        datapoint['dec_word'] = decoder_word
+
+        if opt.use_char:
+            decoder_char = []
+            for word in decoder_word:
+                char_of_the_word = []
+                for ch in word:
+                    char_of_the_word.append(ch)
+
+                decoder_char.append(char_of_the_word)
+
+            datapoint['dec_char'] = decoder_char
+
+        datapoints.append(datapoint)
+
+    return datapoints
 
 
+
+# all documents one list
 def prepare_data(documents, abbr_dict):
     datapoints = []
     for document in documents:
@@ -208,6 +283,18 @@ def prepare_data(documents, abbr_dict):
         datapoints.extend(datapoints_for_one_doc)
 
     return datapoints
+
+# one document one list
+def prepare_data_1(documents, abbr_dict):
+    datapoints = []
+    for document in documents:
+        logging.debug("prepare_data for {}".format(document.name))
+        datapoints_for_one_doc = prepare_data_for_one_document(document, abbr_dict)
+        datapoints.append(datapoints_for_one_doc)
+
+    return datapoints
+
+
 
 
 
