@@ -73,9 +73,10 @@ if __name__ == '__main__':
         build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, dev_datapoints)
         build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, test_datapoints)
         enc_word_alphabet.close()
-        enc_char_alphabet.close()
         dec_word_alphabet.close()
-        dec_char_alphabet.close()
+        if opt.use_char:
+            enc_char_alphabet.close()
+            dec_char_alphabet.close()
 
 
         position_alphabet = Alphabet('position')

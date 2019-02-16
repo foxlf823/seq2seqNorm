@@ -15,12 +15,16 @@ def train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, de
     pos_emb = initialize_emb(None, position_alphabet, opt.pos_emb_dim)
     if opt.use_char:
         enc_char_emb = initialize_emb(config.get('char_emb'), enc_char_alphabet, opt.char_emb_dim)
+    else:
+        enc_char_emb = None
 
     encoder = Encoder(enc_word_emb, pos_emb, enc_char_emb)
 
     dec_word_emb = initialize_emb(config.get('word_emb'), dec_word_alphabet, opt.word_emb_dim)
     if opt.use_char:
         dec_char_emb = initialize_emb(config.get('char_emb'), dec_char_alphabet, opt.char_emb_dim)
+    else:
+        dec_char_emb = None
 
     decoder = Decoder(dec_word_emb, dec_char_emb, dec_word_alphabet)
 
@@ -56,14 +60,17 @@ def train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, de
         for i in range(num_iter):
             enc_word_seq_tensor, enc_word_seq_lengths, enc_word_seq_recover, enc_pos_tensor, enc_mask, \
             enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, dec_word_seq_lengths, \
+            dec_word_perm_idx, \
             dec_word_seq_recover, dec_mask, label_tensor, dec_char_seq_tensor, dec_char_seq_lengths, dec_char_seq_recover = next(train_iter)
 
             encoder_outputs, encoder_hidden = encoder.forward(enc_word_seq_tensor, enc_word_seq_lengths, enc_pos_tensor, \
                 enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover)
 
             if opt.use_teacher_forcing:
-                loss, score = decoder.forward_teacher_forcing(encoder_outputs, encoder_hidden, enc_word_seq_lengths, dec_word_seq_tensor, dec_word_seq_lengths, \
-                                                dec_mask, label_tensor, dec_char_seq_tensor, dec_char_seq_lengths,
+                loss, score = decoder.forward_teacher_forcing(encoder_outputs, encoder_hidden, enc_word_seq_lengths, \
+                                                              enc_word_seq_recover, \
+                                                              dec_word_seq_tensor, dec_word_seq_lengths, dec_word_perm_idx, \
+                                                dec_word_seq_recover, dec_mask, label_tensor, dec_char_seq_tensor, dec_char_seq_lengths,
                                                 dec_char_seq_recover)
             else:
                 raise RuntimeError("currently, we don't support non-teacher-forcing training")

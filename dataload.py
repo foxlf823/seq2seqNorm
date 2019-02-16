@@ -43,21 +43,24 @@ def my_collate(input_batch_list):
 
         _, enc_word_seq_recover = enc_word_perm_idx.sort(0, descending=False)
 
-        enc_char = [datapoint['enc_char'] for datapoint in input_batch_list]
-        enc_pad_chars = [enc_char[idx] + [[0]] * (enc_max_seq_len.item() - len(enc_char[idx])) for idx in range(len(enc_char))]
-        enc_length_list = [list(map(len, pad_char)) for pad_char in enc_pad_chars]
-        enc_max_word_len = max(list(map(max, enc_length_list)))
-        enc_char_seq_tensor = torch.zeros((batch_size, enc_max_seq_len, enc_max_word_len)).long()
-        enc_char_seq_lengths = torch.LongTensor(enc_length_list)
-        for idx, (seq, seqlen) in enumerate(zip(enc_pad_chars, enc_char_seq_lengths)):
-            for idy, (word, wordlen) in enumerate(zip(seq, seqlen)):
-                enc_char_seq_tensor[idx, idy, :wordlen] = torch.LongTensor(word)
+        if opt.use_char:
+            enc_char = [datapoint['enc_char'] for datapoint in input_batch_list]
+            enc_pad_chars = [enc_char[idx] + [[0]] * (enc_max_seq_len.item() - len(enc_char[idx])) for idx in range(len(enc_char))]
+            enc_length_list = [list(map(len, pad_char)) for pad_char in enc_pad_chars]
+            enc_max_word_len = max(list(map(max, enc_length_list)))
+            enc_char_seq_tensor = torch.zeros((batch_size, enc_max_seq_len, enc_max_word_len)).long()
+            enc_char_seq_lengths = torch.LongTensor(enc_length_list)
+            for idx, (seq, seqlen) in enumerate(zip(enc_pad_chars, enc_char_seq_lengths)):
+                for idy, (word, wordlen) in enumerate(zip(seq, seqlen)):
+                    enc_char_seq_tensor[idx, idy, :wordlen] = torch.LongTensor(word)
 
-        enc_char_seq_tensor = enc_char_seq_tensor[enc_word_perm_idx].view(batch_size * enc_max_seq_len.item(), -1)
-        enc_char_seq_lengths = enc_char_seq_lengths[enc_word_perm_idx].view(batch_size * enc_max_seq_len.item(), )
-        enc_char_seq_lengths, enc_char_perm_idx = enc_char_seq_lengths.sort(0, descending=True)
-        enc_char_seq_tensor = enc_char_seq_tensor[enc_char_perm_idx]
-        _, enc_char_seq_recover = enc_char_perm_idx.sort(0, descending=False)
+            enc_char_seq_tensor = enc_char_seq_tensor[enc_word_perm_idx].view(batch_size * enc_max_seq_len.item(), -1)
+            enc_char_seq_lengths = enc_char_seq_lengths[enc_word_perm_idx].view(batch_size * enc_max_seq_len.item(), )
+            enc_char_seq_lengths, enc_char_perm_idx = enc_char_seq_lengths.sort(0, descending=True)
+            enc_char_seq_tensor = enc_char_seq_tensor[enc_char_perm_idx]
+            _, enc_char_seq_recover = enc_char_perm_idx.sort(0, descending=False)
+        else:
+            enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover = None, None, None
 
 
         dec_word = [datapoint['dec_word'][:-1] for datapoint in input_batch_list]
@@ -86,22 +89,24 @@ def my_collate(input_batch_list):
 
         _, dec_word_seq_recover = dec_word_perm_idx.sort(0, descending=False)
 
+        if opt.use_char:
+            dec_char = [datapoint['dec_char'][:-1] for datapoint in input_batch_list]
+            dec_pad_chars = [dec_char[idx] + [[0]] * (dec_max_seq_len.item() - len(dec_char[idx])) for idx in range(len(dec_char))]
+            dec_length_list = [list(map(len, pad_char)) for pad_char in dec_pad_chars]
+            dec_max_word_len = max(list(map(max, dec_length_list)))
+            dec_char_seq_tensor = torch.zeros((batch_size, dec_max_seq_len, dec_max_word_len)).long()
+            dec_char_seq_lengths = torch.LongTensor(dec_length_list)
+            for idx, (seq, seqlen) in enumerate(zip(dec_pad_chars, dec_char_seq_lengths)):
+                for idy, (word, wordlen) in enumerate(zip(seq, seqlen)):
+                    dec_char_seq_tensor[idx, idy, :wordlen] = torch.LongTensor(word)
 
-        dec_char = [datapoint['dec_char'][:-1] for datapoint in input_batch_list]
-        dec_pad_chars = [dec_char[idx] + [[0]] * (dec_max_seq_len.item() - len(dec_char[idx])) for idx in range(len(dec_char))]
-        dec_length_list = [list(map(len, pad_char)) for pad_char in dec_pad_chars]
-        dec_max_word_len = max(list(map(max, dec_length_list)))
-        dec_char_seq_tensor = torch.zeros((batch_size, dec_max_seq_len, dec_max_word_len)).long()
-        dec_char_seq_lengths = torch.LongTensor(dec_length_list)
-        for idx, (seq, seqlen) in enumerate(zip(dec_pad_chars, dec_char_seq_lengths)):
-            for idy, (word, wordlen) in enumerate(zip(seq, seqlen)):
-                dec_char_seq_tensor[idx, idy, :wordlen] = torch.LongTensor(word)
-
-        dec_char_seq_tensor = dec_char_seq_tensor[enc_word_perm_idx].view(batch_size * dec_max_seq_len.item(), -1)
-        dec_char_seq_lengths = dec_char_seq_lengths[enc_word_perm_idx].view(batch_size * dec_max_seq_len.item(), )
-        dec_char_seq_lengths, dec_char_perm_idx = dec_char_seq_lengths.sort(0, descending=True)
-        dec_char_seq_tensor = dec_char_seq_tensor[dec_char_perm_idx]
-        _, dec_char_seq_recover = dec_char_perm_idx.sort(0, descending=False)
+            dec_char_seq_tensor = dec_char_seq_tensor[dec_word_perm_idx].view(batch_size * dec_max_seq_len.item(), -1)
+            dec_char_seq_lengths = dec_char_seq_lengths[dec_word_perm_idx].view(batch_size * dec_max_seq_len.item(), )
+            dec_char_seq_lengths, dec_char_perm_idx = dec_char_seq_lengths.sort(0, descending=True)
+            dec_char_seq_tensor = dec_char_seq_tensor[dec_char_perm_idx]
+            _, dec_char_seq_recover = dec_char_perm_idx.sort(0, descending=False)
+        else:
+            dec_char_seq_tensor, dec_char_seq_lengths, dec_char_seq_recover = None, None, None
 
         if opt.gpu >= 0 and torch.cuda.is_available():
             enc_word_seq_tensor = enc_word_seq_tensor.cuda(opt.gpu)
@@ -110,23 +115,27 @@ def my_collate(input_batch_list):
             enc_pos_tensor = enc_pos_tensor.cuda(opt.gpu)
             enc_mask = enc_mask.cuda(opt.gpu)
 
-            enc_char_seq_tensor = enc_char_seq_tensor(opt.gpu)
-            enc_char_seq_lengths = enc_char_seq_lengths(opt.gpu)
-            enc_char_seq_recover = enc_char_seq_recover(opt.gpu)
+            if opt.use_char:
+                enc_char_seq_tensor = enc_char_seq_tensor(opt.gpu)
+                enc_char_seq_lengths = enc_char_seq_lengths(opt.gpu)
+                enc_char_seq_recover = enc_char_seq_recover(opt.gpu)
 
             dec_word_seq_tensor = dec_word_seq_tensor.cuda(opt.gpu)
             dec_word_seq_lengths = dec_word_seq_lengths.cuda(opt.gpu)
+            dec_word_perm_idx = dec_word_perm_idx.cuda(opt.gpu)
             dec_word_seq_recover = dec_word_seq_recover.cuda(opt.gpu)
             dec_mask = dec_mask.cuda(opt.gpu)
             label_tensor = label_tensor(opt.gpu)
 
-            dec_char_seq_tensor = dec_char_seq_tensor(opt.gpu)
-            dec_char_seq_lengths = dec_char_seq_lengths(opt.gpu)
-            dec_char_seq_recover = dec_char_seq_recover(opt.gpu)
+            if opt.use_char:
+                dec_char_seq_tensor = dec_char_seq_tensor(opt.gpu)
+                dec_char_seq_lengths = dec_char_seq_lengths(opt.gpu)
+                dec_char_seq_recover = dec_char_seq_recover(opt.gpu)
 
 
     return enc_word_seq_tensor, enc_word_seq_lengths, enc_word_seq_recover, enc_pos_tensor, enc_mask, \
            enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, dec_word_seq_lengths, \
+           dec_word_perm_idx, \
            dec_word_seq_recover, dec_mask, label_tensor, dec_char_seq_tensor, dec_char_seq_lengths, dec_char_seq_recover
 
 

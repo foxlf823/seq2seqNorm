@@ -186,10 +186,27 @@ class Decoder(nn.Module):
             self.lstm = self.lstm.cuda(opt.gpu)
             self.hidden2tag = self.hidden2tag.cuda(opt.gpu)
 
-    def forward_teacher_forcing(self, encoder_outputs, encoder_hidden, encoder_lengths, word_inputs, word_seq_lengths, \
-                                                word_mask, label_tensor, char_inputs, char_seq_lengths, char_seq_recover):
+    def forward_teacher_forcing(self, encoder_outputs, encoder_hidden, encoder_lengths, encoder_recover, \
+                                word_inputs, word_seq_lengths, word_perm_idx, \
+                                word_seq_recover, word_mask, label_tensor, char_inputs, char_seq_lengths, char_seq_recover):
+
         word_represent = self.wordrep(word_inputs, word_seq_lengths, None, char_inputs, char_seq_lengths,
                                       char_seq_recover)
+
+        # recover encoder into original order
+        encoder_outputs = encoder_outputs[encoder_recover]
+        # align encoder with decoder
+        encoder_outputs = encoder_outputs[word_perm_idx]
+
+        encoder_lengths = encoder_lengths[encoder_recover]
+        encoder_lengths = encoder_lengths[word_perm_idx]
+
+        encoder_hidden_0 = encoder_hidden[0].transpose(1, 0)[encoder_recover]
+        encoder_hidden_0 = encoder_hidden_0[word_perm_idx]
+        encoder_hidden_1 = encoder_hidden[1].transpose(1, 0)[encoder_recover]
+        encoder_hidden_1 = encoder_hidden_1[word_perm_idx]
+        encoder_hidden = (encoder_hidden_0.transpose(1, 0), encoder_hidden_1.transpose(1, 0))
+
 
         word_represent = self.attn(word_represent, encoder_outputs, encoder_lengths)
 
