@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import re
 import codecs
+import torch
 
 def _readString(f, code):
     # s = unicode()
@@ -100,10 +101,9 @@ def norm2one(vec):
     root_sum_square = np.sqrt(np.sum(np.square(vec)))
     return vec/root_sum_square
 
-def build_pretrain_embedding(embedding_path, word_alphabet, embedd_dim, norm):
-    embedd_dict = dict()
-    if embedding_path != None:
-        embedd_dict, embedd_dim = load_pretrain_emb(embedding_path)
+def build_pretrain_embedding(embedding_path, word_alphabet, norm):
+
+    embedd_dict, embedd_dim = load_pretrain_emb(embedding_path)
     alphabet_size = word_alphabet.size()
     logging.info("alphabet size {}".format(alphabet_size))
     scale = np.sqrt(3.0 / embedd_dim)
@@ -149,3 +149,21 @@ def build_pretrain_embedding(embedding_path, word_alphabet, embedd_dim, norm):
                    lowercase_and_digits_replaced_with_zeros_found, not_match))
     logging.info('oov: %.2f%%' % (not_match*100.0/alphabet_size))
     return pretrain_emb, embedd_dim
+
+def random_embedding(vocab_size, embedding_dim):
+    pretrain_emb = np.zeros([vocab_size, embedding_dim])
+    scale = np.sqrt(3.0 / embedding_dim)
+    for index in range(vocab_size):
+        pretrain_emb[index,:] = np.random.uniform(-scale, scale, [1, embedding_dim])
+    return pretrain_emb
+
+def initialize_emb(path, alphabet, expected_emb_dim):
+    if path is not None:
+        logging.info("{}: load pretrained embedding from {}".format(alphabet.name, path))
+        pretrain_word_embedding, pretrain_emb_dim = build_pretrain_embedding(path, alphabet, False)
+        word_embedding = torch.from_numpy(pretrain_word_embedding)
+    else:
+        logging.info("{}: randomly initialize embedding".format(alphabet.name))
+        word_embedding = torch.from_numpy(random_embedding(alphabet.size(), expected_emb_dim))
+
+    return word_embedding

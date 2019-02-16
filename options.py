@@ -15,8 +15,8 @@ parser.add_argument('-lr', type=float, default=0.001)
 parser.add_argument('-word_emb_file', default=None)
 parser.add_argument('-word_emb_dim', type=int, default=100)
 parser.add_argument('-hidden_dim', type=int, default=100)
-parser.add_argument('-char_emb_dim', type=int, default=24)
-parser.add_argument('-char_hidden_dim', type=int, default=24)
+parser.add_argument('-char_emb_dim', type=int, default=50)
+parser.add_argument('-char_hidden_dim', type=int, default=50)
 parser.add_argument('-batch_size', type=int, default=8)
 parser.add_argument('-dropout', type=float, default=0, help='0~0.5')
 parser.add_argument('-l2', type=float, default=1e-8)
@@ -34,8 +34,9 @@ parser.add_argument('-schema', default='BMES', help='BMES, BIOHD_1234')
 parser.add_argument('-cross_validation', type=int, default=1, help='1-not use cross validation; >1 - use n-fold cross validation')
 parser.add_argument('-config', default='./config.txt')
 parser.add_argument('-use_char', action='store_true', default=False)
-
-
+parser.add_argument('-bidirect', action='store_true', default=False)
+parser.add_argument('-use_teacher_forcing', action='store_true', default=False)
+parser.add_argument('-pos_emb_dim', type=int, default=20)
 
 opt = parser.parse_args()
 

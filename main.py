@@ -4,8 +4,7 @@ import random
 import numpy as np
 import torch
 from alphabet import Alphabet, build_alphabet, build_position_alphabet, datapoint2id, build_alphabet_1, datapoint2id_1
-from torch.utils.data import DataLoader
-from dataload import MyDataset, my_collate
+from train import train
 
 
 if __name__ == '__main__':
@@ -56,17 +55,27 @@ if __name__ == '__main__':
         test_datapoints = prepare_data_1(test_documents, abbr_dict)
 
         logging.info("build alphabet ...")
-        word_alphabet = Alphabet('word')
+        enc_word_alphabet = Alphabet('enc_word')
         if opt.use_char:
-            char_alphabet = Alphabet('char')
+            enc_char_alphabet = Alphabet('enc_char')
         else:
-            char_alphabet = None
-        word_alphabet.add('<SOS>')
-        word_alphabet.add('<EOS>')
-        build_alphabet(word_alphabet, char_alphabet, train_datapoints)
-        build_alphabet_1(word_alphabet, char_alphabet, dev_datapoints)
-        build_alphabet_1(word_alphabet, char_alphabet, test_datapoints)
-        word_alphabet.close()
+            enc_char_alphabet = None
+
+        dec_word_alphabet = Alphabet('dec_word')
+        if opt.use_char:
+            dec_char_alphabet = Alphabet('dec_char')
+        else:
+            dec_char_alphabet = None
+
+        dec_word_alphabet.add('<SOS>')
+        dec_word_alphabet.add('<EOS>')
+        build_alphabet(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, train_datapoints)
+        build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, dev_datapoints)
+        build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, test_datapoints)
+        enc_word_alphabet.close()
+        enc_char_alphabet.close()
+        dec_word_alphabet.close()
+        dec_char_alphabet.close()
 
 
         position_alphabet = Alphabet('position')
@@ -74,11 +83,11 @@ if __name__ == '__main__':
         position_alphabet.close()
 
         logging.info("transfer data points to id")
-        train_ids = datapoint2id(word_alphabet, char_alphabet, position_alphabet, train_datapoints)
-        dev_ids = datapoint2id_1(word_alphabet, char_alphabet, position_alphabet, dev_datapoints)
-        test_ids = datapoint2id_1(word_alphabet, char_alphabet, position_alphabet, test_datapoints)
+        train_ids = datapoint2id(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, train_datapoints)
+        dev_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, dev_datapoints)
+        test_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, test_datapoints)
 
-        train_loader = DataLoader(MyDataset(train_ids), opt.batch_size, shuffle=True, collate_fn=my_collate)
+        train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet)
 
 
 

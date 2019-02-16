@@ -109,56 +109,56 @@ class Alphabet:
         self.from_json(json.load(open(os.path.join(input_directory, loading_name + ".json"))))
 
 
-def build_alphabet(word_alphabet, char_alphabet, datapoints):
+def build_alphabet(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, datapoints):
     for datapoint in datapoints:
 
         encoder_word = datapoint['enc_word']
         for word in encoder_word:
-            word_alphabet.add(word)
+            enc_word_alphabet.add(word)
 
         if opt.use_char:
             encoder_char = datapoint['enc_char']
             for char_in_word in encoder_char:
                 for ch in char_in_word:
-                    char_alphabet.add(ch)
+                    enc_char_alphabet.add(ch)
 
         decoder_word = datapoint['dec_word']
         for word in decoder_word:
-            word_alphabet.add(word)
+            dec_word_alphabet.add(word)
 
         if opt.use_char:
             decoder_char = datapoint['dec_char']
             for char_in_word in decoder_char:
                 for ch in char_in_word:
-                    char_alphabet.add(ch)
+                    dec_char_alphabet.add(ch)
 
 
 
 
-def build_alphabet_1(word_alphabet, char_alphabet, datapoints):
+def build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, datapoints):
     for datapoint_for_one_doc in datapoints:
 
         for datapoint in datapoint_for_one_doc:
 
             encoder_word = datapoint['enc_word']
             for word in encoder_word:
-                word_alphabet.add(word)
+                enc_word_alphabet.add(word)
 
             if opt.use_char:
                 encoder_char = datapoint['enc_char']
                 for char_in_word in encoder_char:
                     for ch in char_in_word:
-                        char_alphabet.add(ch)
+                        enc_char_alphabet.add(ch)
 
             decoder_word = datapoint['dec_word']
             for word in decoder_word:
-                word_alphabet.add(word)
+                dec_word_alphabet.add(word)
 
             if opt.use_char:
                 decoder_char = datapoint['dec_char']
                 for char_in_word in decoder_char:
                     for ch in char_in_word:
-                        char_alphabet.add(ch)
+                        dec_char_alphabet.add(ch)
 
 
 
@@ -168,7 +168,7 @@ def build_position_alphabet(alphabet):
             alphabet.add(i)
             alphabet.add(-i)
 
-def datapoint2id(word_alphabet, char_alphabet, position_alphabet, datapoints):
+def datapoint2id(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, datapoints):
     ids = []
     for datapoint in datapoints:
         id_dict = {}
@@ -176,7 +176,7 @@ def datapoint2id(word_alphabet, char_alphabet, position_alphabet, datapoints):
         encoder_word = datapoint['enc_word']
         encoder_word_id = []
         for word in encoder_word:
-            encoder_word_id.append(word_alphabet.get_index(word))
+            encoder_word_id.append(enc_word_alphabet.get_index(word))
         id_dict['enc_word'] = encoder_word_id
 
         if opt.use_char:
@@ -185,7 +185,7 @@ def datapoint2id(word_alphabet, char_alphabet, position_alphabet, datapoints):
             for char_in_word in encoder_char:
                 char_in_word_id = []
                 for ch in char_in_word:
-                    char_in_word_id.append(char_alphabet.get_index(ch))
+                    char_in_word_id.append(enc_char_alphabet.get_index(ch))
                 encoder_char_id.append(char_in_word_id)
             id_dict['enc_char'] = encoder_char_id
 
@@ -199,7 +199,7 @@ def datapoint2id(word_alphabet, char_alphabet, position_alphabet, datapoints):
         decoder_word = datapoint['dec_word']
         decoder_word_id = []
         for word in decoder_word:
-            decoder_word_id.append(word_alphabet.get_index(word))
+            decoder_word_id.append(dec_word_alphabet.get_index(word))
         id_dict['dec_word'] = decoder_word_id
 
         if opt.use_char:
@@ -208,7 +208,7 @@ def datapoint2id(word_alphabet, char_alphabet, position_alphabet, datapoints):
             for char_in_word in decoder_char:
                 char_in_word_id = []
                 for ch in char_in_word:
-                    char_in_word_id.append(char_alphabet.get_index(ch))
+                    char_in_word_id.append(dec_char_alphabet.get_index(ch))
                 decoder_char_id.append(char_in_word_id)
             id_dict['dec_char'] = decoder_char_id
 
@@ -216,7 +216,7 @@ def datapoint2id(word_alphabet, char_alphabet, position_alphabet, datapoints):
 
     return ids
 
-def datapoint2id_1(word_alphabet, char_alphabet, position_alphabet, datapoints):
+def datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, datapoints):
     ids = []
     for datapoint_for_one_doc in datapoints:
         ids_for_one_doc = []
@@ -226,7 +226,7 @@ def datapoint2id_1(word_alphabet, char_alphabet, position_alphabet, datapoints):
             encoder_word = datapoint['enc_word']
             encoder_word_id = []
             for word in encoder_word:
-                encoder_word_id.append(word_alphabet.get_index(word))
+                encoder_word_id.append(enc_word_alphabet.get_index(word))
             id_dict['enc_word'] = encoder_word_id
 
             if opt.use_char:
@@ -235,7 +235,7 @@ def datapoint2id_1(word_alphabet, char_alphabet, position_alphabet, datapoints):
                 for char_in_word in encoder_char:
                     char_in_word_id = []
                     for ch in char_in_word:
-                        char_in_word_id.append(char_alphabet.get_index(ch))
+                        char_in_word_id.append(enc_char_alphabet.get_index(ch))
                     encoder_char_id.append(char_in_word_id)
                 id_dict['enc_char'] = encoder_char_id
 
@@ -248,7 +248,7 @@ def datapoint2id_1(word_alphabet, char_alphabet, position_alphabet, datapoints):
             decoder_word = datapoint['dec_word']
             decoder_word_id = []
             for word in decoder_word:
-                decoder_word_id.append(word_alphabet.get_index(word))
+                decoder_word_id.append(dec_word_alphabet.get_index(word))
             id_dict['dec_word'] = decoder_word_id
 
             if opt.use_char:
@@ -257,7 +257,7 @@ def datapoint2id_1(word_alphabet, char_alphabet, position_alphabet, datapoints):
                 for char_in_word in decoder_char:
                     char_in_word_id = []
                     for ch in char_in_word:
-                        char_in_word_id.append(char_alphabet.get_index(ch))
+                        char_in_word_id.append(dec_char_alphabet.get_index(ch))
                     decoder_char_id.append(char_in_word_id)
                 id_dict['dec_char'] = decoder_char_id
 
