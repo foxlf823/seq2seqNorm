@@ -60,7 +60,7 @@ class WordRep(nn.Module):
                 self.pos_embedding = self.pos_embedding.cuda(opt.gpu)
 
 
-    def forward(self, word_inputs, word_seq_lengths, pos_inputs, char_inputs, char_seq_lengths, char_seq_recover):
+    def forward(self, word_inputs, pos_inputs, char_inputs, char_seq_lengths, char_seq_recover):
 
         batch_size = word_inputs.size(0)
         sent_len = word_inputs.size(1)
@@ -109,15 +109,14 @@ class Encoder(nn.Module):
             self.lstm = self.lstm.cuda(opt.gpu)
 
 
-    def forward(self, word_inputs, word_seq_lengths, pos_inputs, char_inputs, char_seq_lengths, char_seq_recover):
+    def forward(self, word_inputs, pos_inputs, char_inputs, char_seq_lengths, char_seq_recover):
 
-        word_represent = self.wordrep(word_inputs, word_seq_lengths, pos_inputs, char_inputs, char_seq_lengths, char_seq_recover)
+        word_represent = self.wordrep(word_inputs, pos_inputs, char_inputs, char_seq_lengths, char_seq_recover)
 
-        packed_words = pack_padded_sequence(word_represent, word_seq_lengths.cpu().numpy(), True)
         hidden = None
-        lstm_out, hidden = self.lstm(packed_words, hidden)
-        lstm_out, _ = pad_packed_sequence(lstm_out)
-        outputs = self.droplstm(lstm_out.transpose(1, 0))
+        lstm_out, hidden = self.lstm(word_represent, hidden)
+
+        outputs = self.droplstm(lstm_out)
 
         return outputs, hidden
 
@@ -138,7 +137,7 @@ class Attention(nn.Module):
         if opt.gpu >= 0 and torch.cuda.is_available():
             self.W = self.W.cuda(opt.gpu)
 
-    def forward(self, dec_inputs, encoder_outputs, encoder_lengths):
+    def forward(self, dec_inputs, encoder_outputs):
         batch_size, dec_seq_len, _ = dec_inputs.size()
         flat_dec_inputs = dec_inputs.contiguous().view(-1, self.input_size)
         logits = self.W(flat_dec_inputs).view(batch_size , dec_seq_len, -1)
@@ -146,16 +145,6 @@ class Attention(nn.Module):
 
         alphas = functional.softmax(logits, dim=2)
 
-        _, enc_seq_len, _ = encoder_outputs.size()
-        idxes = torch.arange(0, enc_seq_len, out=torch.LongTensor(enc_seq_len)).unsqueeze(0)
-        if opt.gpu >= 0 and torch.cuda.is_available():
-            idxes = idxes.cuda(opt.gpu)
-        mask = (idxes < encoder_lengths.unsqueeze(1)).float()
-        mask = mask.unsqueeze(1).expand(-1, dec_seq_len, -1)
-
-        alphas = alphas * mask
-        # renormalize
-        alphas = alphas / torch.sum(alphas, 2).view(batch_size, dec_seq_len, 1)
         output = torch.bmm(alphas, encoder_outputs)
         return output
 
@@ -186,35 +175,22 @@ class Decoder(nn.Module):
             self.lstm = self.lstm.cuda(opt.gpu)
             self.hidden2tag = self.hidden2tag.cuda(opt.gpu)
 
-    def forward_teacher_forcing(self, encoder_outputs, encoder_hidden, encoder_lengths, encoder_recover, \
-                                word_inputs, word_seq_lengths, word_perm_idx, \
-                                word_seq_recover, word_mask, label_tensor, char_inputs, char_seq_lengths, char_seq_recover):
+    def forward_teacher_forcing(self, encoder_outputs, encoder_hidden,
+                                word_inputs, label_tensor,
+                                char_inputs, char_seq_lengths, char_seq_recover):
 
-        word_represent = self.wordrep(word_inputs, word_seq_lengths, None, char_inputs, char_seq_lengths,
+        word_represent = self.wordrep(word_inputs, None, char_inputs, char_seq_lengths,
                                       char_seq_recover)
 
-        # recover encoder into original order
-        encoder_outputs = encoder_outputs[encoder_recover]
-        # align encoder with decoder
-        encoder_outputs = encoder_outputs[word_perm_idx]
+        word_represent = self.attn(word_represent, encoder_outputs)
 
-        encoder_lengths = encoder_lengths[encoder_recover]
-        encoder_lengths = encoder_lengths[word_perm_idx]
+        if opt.bidirect: # encoder is bidirect, decoder is single-direct
+            encoder_hidden_0 = encoder_hidden[0].transpose(1, 0).view(1, 1, -1).transpose(1, 0)
+            encoder_hidden_1 = encoder_hidden[1].transpose(1, 0).view(1, 1, -1).transpose(1, 0)
+            encoder_hidden = (encoder_hidden_0, encoder_hidden_1)
 
-        encoder_hidden_0 = encoder_hidden[0].transpose(1, 0)[encoder_recover]
-        encoder_hidden_0 = encoder_hidden_0[word_perm_idx]
-        encoder_hidden_1 = encoder_hidden[1].transpose(1, 0)[encoder_recover]
-        encoder_hidden_1 = encoder_hidden_1[word_perm_idx]
-        encoder_hidden = (encoder_hidden_0.transpose(1, 0), encoder_hidden_1.transpose(1, 0))
-
-
-        word_represent = self.attn(word_represent, encoder_outputs, encoder_lengths)
-
-        packed_words = pack_padded_sequence(word_represent, word_seq_lengths.cpu().numpy(), True)
-
-        lstm_out, hidden = self.lstm(packed_words, encoder_hidden)
-        lstm_out, _ = pad_packed_sequence(lstm_out)
-        outputs = self.droplstm(lstm_out.transpose(1, 0))
+        lstm_out, hidden = self.lstm(word_represent, encoder_hidden)
+        outputs = self.droplstm(lstm_out)
 
         outputs = self.hidden2tag(outputs)
 

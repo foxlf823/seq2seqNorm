@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader
-from dataload import MyDataset, my_collate
+from dataload import MyDataset, my_collate_1
 from options import opt, config
 from embedding import initialize_emb
 from model import Encoder, Decoder
@@ -28,7 +28,10 @@ def train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, de
 
     decoder = Decoder(dec_word_emb, dec_char_emb, dec_word_alphabet)
 
-    train_loader = DataLoader(MyDataset(train_ids), opt.batch_size, shuffle=True, collate_fn=my_collate)
+    # train_loader = DataLoader(MyDataset(train_ids), opt.batch_size, shuffle=True, collate_fn=my_collate)
+    if opt.batch_size != 1:
+        raise RuntimeError("currently, only support batch size 1")
+    train_loader = DataLoader(MyDataset(train_ids), opt.batch_size, shuffle=True, collate_fn=my_collate_1)
 
     optimizer = optim.Adam(itertools.chain(encoder.parameters(), decoder.parameters()), lr=opt.lr, weight_decay=opt.l2)
 
@@ -58,20 +61,17 @@ def train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, de
         correct, total = 0, 0
 
         for i in range(num_iter):
-            enc_word_seq_tensor, enc_word_seq_lengths, enc_word_seq_recover, enc_pos_tensor, enc_mask, \
-            enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, dec_word_seq_lengths, \
-            dec_word_perm_idx, \
-            dec_word_seq_recover, dec_mask, label_tensor, dec_char_seq_tensor, dec_char_seq_lengths, dec_char_seq_recover = next(train_iter)
+            enc_word_seq_tensor, enc_pos_tensor, \
+            enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, \
+            label_tensor, dec_char_seq_tensor, dec_char_seq_lengths, dec_char_seq_recover = next(train_iter)
 
-            encoder_outputs, encoder_hidden = encoder.forward(enc_word_seq_tensor, enc_word_seq_lengths, enc_pos_tensor, \
+            encoder_outputs, encoder_hidden = encoder.forward(enc_word_seq_tensor, enc_pos_tensor, \
                 enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover)
 
             if opt.use_teacher_forcing:
-                loss, score = decoder.forward_teacher_forcing(encoder_outputs, encoder_hidden, enc_word_seq_lengths, \
-                                                              enc_word_seq_recover, \
-                                                              dec_word_seq_tensor, dec_word_seq_lengths, dec_word_perm_idx, \
-                                                dec_word_seq_recover, dec_mask, label_tensor, dec_char_seq_tensor, dec_char_seq_lengths,
-                                                dec_char_seq_recover)
+                loss, score = decoder.forward_teacher_forcing(encoder_outputs, encoder_hidden,
+                                                              dec_word_seq_tensor, label_tensor,
+                                                              dec_char_seq_tensor, dec_char_seq_lengths, dec_char_seq_recover)
             else:
                 raise RuntimeError("currently, we don't support non-teacher-forcing training")
 
