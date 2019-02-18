@@ -33,6 +33,12 @@ class CharBiLSTM(nn.Module):
 
         return char_hidden[0].transpose(1,0).contiguous().view(batch_size,-1)
 
+    def forward_one_step(self, input):
+        char_embeds = self.char_drop(self.char_embeddings(input))
+        char_hidden = None
+        char_rnn_out, char_hidden = self.char_lstm(char_embeds, char_hidden)
+        return char_hidden[0].transpose(1,0).contiguous().view(1, 1, -1)
+
 
 class WordRep(nn.Module):
     def __init__(self, word_emb, pos_emb, char_emb):
@@ -149,12 +155,23 @@ class Attention(nn.Module):
         return output
 
 
+
 class Decoder(nn.Module):
     def __init__(self, word_emb, char_emb, label_alphabet):
         super(Decoder, self).__init__()
 
-        self.droplstm = nn.Dropout(opt.dropout)
-        self.wordrep = WordRep(word_emb, None, char_emb)
+        if opt.use_char:
+            self.char_feature = CharBiLSTM(char_emb)
+
+        self.drop_wordrep = nn.Dropout(opt.dropout)
+
+        self.word_embedding = nn.Embedding(word_emb.size(0), word_emb.size(1), padding_idx=0)
+        self.word_embedding.weight.data.copy_(word_emb)
+
+        if opt.gpu >= 0 and torch.cuda.is_available():
+            self.drop_wordrep = self.drop_wordrep.cuda(opt.gpu)
+            self.word_embedding = self.word_embedding.cuda(opt.gpu)
+
 
         self.input_size = word_emb.size(1)
         if opt.use_char:
@@ -164,16 +181,83 @@ class Decoder(nn.Module):
 
         # decoder use single-direction RNN
         self.lstm = nn.LSTM(opt.hidden_dim, opt.hidden_dim, num_layers=1, batch_first=True, bidirectional=False)
+        self.droplstm = nn.Dropout(opt.dropout)
 
         self.hidden2tag = nn.Linear(opt.hidden_dim, label_alphabet.size())
 
         # don't compute pad as loss
         self.loss_function = nn.NLLLoss(ignore_index=0, size_average=False)
 
+        # word_input = torch.LongTensor([[dec_word_alphabet.get_index("<SOS>")]])
+        # if opt.use_char:
+        #     char_input = []
+        #     for ch in "<SOS>":
+        #         char_input.append(dec_char_alphabet.get_index(ch))
+        #     char_input = torch.LongTensor([char_input])
+
         if opt.gpu >= 0 and torch.cuda.is_available():
             self.droplstm = self.droplstm.cuda(opt.gpu)
             self.lstm = self.lstm.cuda(opt.gpu)
             self.hidden2tag = self.hidden2tag.cuda(opt.gpu)
+
+    def forward_one_step(self, encoder_outputs, last_hidden, word_input, char_input):
+        word_embs = self.word_embedding(word_input)
+        word_list = [word_embs]
+
+        if opt.use_char:
+            char_features = self.char_feature.forward_one_step(char_input)
+            word_list.append(char_features)
+
+        word_embs = torch.cat(word_list, 2)
+        word_represent = self.drop_wordrep(word_embs)
+
+        word_represent = self.attn(word_represent, encoder_outputs)
+
+        lstm_out, hidden = self.lstm(word_represent, last_hidden)
+
+        return lstm_out, hidden
+
+    def forward_train(self, encoder_outputs, encoder_hidden,
+                                word_inputs, label_tensor, char_inputs):
+
+        if opt.bidirect: # encoder is bidirect, decoder is single-direct
+            encoder_hidden_0 = encoder_hidden[0].transpose(1, 0).view(1, 1, -1).transpose(1, 0)
+            encoder_hidden_1 = encoder_hidden[1].transpose(1, 0).view(1, 1, -1).transpose(1, 0)
+            encoder_hidden = (encoder_hidden_0, encoder_hidden_1)
+
+        last_hidden = encoder_hidden
+        loss = 0
+        correct = 0
+        total = len(label_tensor)
+
+        for di, label in enumerate(label_tensor):
+            if opt.use_teacher_forcing:
+                word_input = word_inputs[di]
+                if opt.use_char:
+                    char_input = char_inputs[di]
+            else:
+                raise RuntimeError("only support teacher-forcing training")
+
+            lstm_out, hidden = self.forward_one_step(encoder_outputs, last_hidden, word_input, char_input)
+
+            last_hidden = hidden
+
+            output = self.droplstm(lstm_out)
+
+            output = self.hidden2tag(output)
+
+            score = functional.log_softmax(output.view(1, -1))
+            loss += self.loss_function(score, label)
+
+            _, pred = torch.max(score, 1)
+            correct += (pred == label).sum().item()
+
+
+        return loss, total, correct
+
+
+
+
 
     def forward_teacher_forcing(self, encoder_outputs, encoder_hidden,
                                 word_inputs, label_tensor,

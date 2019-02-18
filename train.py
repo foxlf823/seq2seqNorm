@@ -63,17 +63,15 @@ def train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, de
         for i in range(num_iter):
             enc_word_seq_tensor, enc_pos_tensor, \
             enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, \
-            label_tensor, dec_char_seq_tensor, dec_char_seq_lengths, dec_char_seq_recover = next(train_iter)
+            label_tensor, dec_char_seq_tensor = next(train_iter)
 
             encoder_outputs, encoder_hidden = encoder.forward(enc_word_seq_tensor, enc_pos_tensor, \
                 enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover)
 
-            if opt.use_teacher_forcing:
-                loss, score = decoder.forward_teacher_forcing(encoder_outputs, encoder_hidden,
+
+            loss, total_this_batch, correct_this_batch = decoder.forward_train(encoder_outputs, encoder_hidden,
                                                               dec_word_seq_tensor, label_tensor,
-                                                              dec_char_seq_tensor, dec_char_seq_lengths, dec_char_seq_recover)
-            else:
-                raise RuntimeError("currently, we don't support non-teacher-forcing training")
+                                                              dec_char_seq_tensor)
 
             sum_loss += loss.item()
 
@@ -86,9 +84,8 @@ def train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, de
             encoder.zero_grad()
             decoder.zero_grad()
 
-            total += label_tensor.size(0)*label_tensor.size(1)
-            _, pred = torch.max(score, 1)
-            correct += (pred == label_tensor.view(-1)).sum().item()
+            total += total_this_batch
+            correct += correct_this_batch
 
         epoch_finish = time.time()
         accuracy = 100.0 * correct / total
