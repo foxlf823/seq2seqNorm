@@ -104,7 +104,7 @@ def norm2one(vec):
 def build_pretrain_embedding(embedding_path, word_alphabet, norm):
 
     embedd_dict, embedd_dim = load_pretrain_emb(embedding_path)
-    alphabet_size = word_alphabet.size()
+    alphabet_size = word_alphabet.size()-1 # minus pad token
     logging.info("alphabet size {}".format(alphabet_size))
     scale = np.sqrt(3.0 / embedd_dim)
     pretrain_emb = np.zeros([word_alphabet.size(), embedd_dim])

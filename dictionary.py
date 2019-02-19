@@ -89,10 +89,13 @@ def load_ctd(file_path):
             ParentIDs = columns[4]
             TreeNumbers = columns[5]
             ParentTreeNumbers = columns[6]
-            Synonyms = columns[7]
+            if len(columns) >= 8:
+                Synonyms = columns[7]
+            else:
+                Synonyms = ""
 
-            if DiseaseID.find('MESH') == -1:
-                raise RuntimeError("DiseaseID.find('MESH') == -1")
+            # if DiseaseID.find('MESH') == -1:
+            #     raise RuntimeError("DiseaseID.find('MESH') == -1")
 
             DiseaseID = DiseaseID.split(':')[1]
             DiseaseName = name_process(DiseaseName, None)  # assume there are no abbr in the CTD
@@ -108,38 +111,45 @@ def load_ctd(file_path):
 
             key_name = tokenlist2key(term.preferred_name)
             if key_name in dictionary.name2id:
-                raise RuntimeError('key_name in dictionary.name2id')
+                # raise RuntimeError('key_name in dictionary.name2id')
+                logging.debug("id {} key_name {} exists".format(DiseaseID, key_name))
+                continue
             else:
                 dictionary.name2id[key_name] = DiseaseID
 
-            for sm in Synonyms.split('|'):
-                ret_words = name_process(sm, None)
-                if len(ret_words) == 0:
-                    raise RuntimeError("len(ret_words) == 0")
-                else:
-                    if len(ret_words) > max_name_length:
-                        max_name_length = len(ret_words)
+            if len(Synonyms) != 0:
+                for sm in Synonyms.split('|'):
+                    ret_words = name_process(sm, None)
+                    if len(ret_words) == 0:
+                        # raise RuntimeError("len(ret_words) == 0")
+                        continue
+                    else:
+                        if len(ret_words) > max_name_length:
+                            max_name_length = len(ret_words)
 
-                sm_list = []
-                for rw in ret_words:
-                    sm_list.append(rw)
+                    sm_list = []
+                    for rw in ret_words:
+                        sm_list.append(rw)
 
-                if sm_list == term.preferred_name:
-                    continue
+                    if sm_list == term.preferred_name:
+                        continue
 
-                setList(term.synonyms, sm_list)
+                    setList(term.synonyms, sm_list)
 
             dictionary.id2name[DiseaseID] = term
 
             if AltDiseaseIDs != '':
-                if AltDiseaseIDs.find('OMIM') == -1:
-                    raise RuntimeError("AltDiseaseIDs.find('OMIM') == -1")
+                # if AltDiseaseIDs.find('OMIM') == -1:
+                #     raise RuntimeError("AltDiseaseIDs.find('OMIM') == -1")
 
-                AltDiseaseIDs = AltDiseaseIDs.split(':')[1]
-                if AltDiseaseIDs in dictionary.altid2id:
-                    raise RuntimeError('AltDiseaseIDs in dictionary.altid2id')
-                else:
-                    dictionary.altid2id[AltDiseaseIDs] = DiseaseID
+                alt_id_list = AltDiseaseIDs.split('|')
+                for alt_id in alt_id_list:
+                    alt_id = alt_id.split(':')[1]
+                    if alt_id in dictionary.altid2id:
+                        # we only consider one-to-one map of altid2id
+                        logging.debug('alt_id {} already in dictionary.altid2id'.format(alt_id))
+                    else:
+                        dictionary.altid2id[alt_id] = DiseaseID
 
     logging.info("dictionary max_name_length: {}".format(max_name_length))
 

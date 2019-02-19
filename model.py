@@ -230,6 +230,8 @@ class Decoder(nn.Module):
                 word_input = word_inputs[di]
                 if opt.use_char:
                     char_input = char_inputs[di]
+                else:
+                    char_input = None
             else:
                 raise RuntimeError("only support teacher-forcing training")
 
@@ -297,9 +299,9 @@ class Decoder(nn.Module):
 
 
     def free_emb(self):
-        freeze_net(self.wordrep.word_embedding)
+        freeze_net(self.word_embedding)
         if opt.use_char:
-            freeze_net(self.wordrep.char_feature.char_embeddings)
+            freeze_net(self.char_feature.char_embeddings)
 
 
 

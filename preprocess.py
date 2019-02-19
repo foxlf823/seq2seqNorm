@@ -83,12 +83,34 @@ def load_data_pubtator(file_path):
                 entity.name = columns[3]
                 entity.type = columns[4]
 
+                if columns[5].find('|') != -1:
+                    ids = columns[5].split('|')
+                    for id in ids:
+                        if id == '-1':
+                            raise RuntimeError("id == -1")
+                        if id.find("OMIM:") != -1:
+                            id = id[id.find("OMIM:")+len("OMIM:"):]
+                            entity.norm_ids.append(id)
+                        else:
+                            entity.norm_ids.append(id)
+                elif columns[5].find('+') != -1:
+                    ids = columns[5].split('+')
+                    for id in ids:
+                        if id == '-1':
+                            raise RuntimeError("id == -1")
+                        if id.find("OMIM:") != -1:
+                            id = id[id.find("OMIM:") + len("OMIM:"):]
+                            entity.norm_ids.append(id)
+                        else:
+                            entity.norm_ids.append(id)
+                else:
+                    id = columns[5]
+                    if id.find("OMIM:") != -1:
+                        id = id[id.find("OMIM:") + len("OMIM:"):]
+                        entity.norm_ids.append(id)
+                    else:
+                        entity.norm_ids.append(id)
 
-                ids = columns[5].split('|')
-                for id in ids:
-                    if id == '-1':
-                        raise RuntimeError("id == -1")
-                    entity.norm_ids.append(id)
 
                 # columns[6], cdr may has Individual mentions, we don't use it yet
 
@@ -97,7 +119,9 @@ def load_data_pubtator(file_path):
                         entity.sent_idx = sent_idx
                         break
                 if entity.sent_idx == -1:
-                    raise RuntimeError("can't find entity.sent_idx")
+                    logging.debug("can't find entity.sent_idx: {} ".format(entity.name))
+                    continue
+                    # raise RuntimeError("can't find entity.sent_idx")
 
                 tkStart = -1
                 tkEnd = -1

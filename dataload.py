@@ -116,21 +116,21 @@ def my_collate(input_batch_list):
             enc_mask = enc_mask.cuda(opt.gpu)
 
             if opt.use_char:
-                enc_char_seq_tensor = enc_char_seq_tensor(opt.gpu)
-                enc_char_seq_lengths = enc_char_seq_lengths(opt.gpu)
-                enc_char_seq_recover = enc_char_seq_recover(opt.gpu)
+                enc_char_seq_tensor = enc_char_seq_tensor.cuda(opt.gpu)
+                enc_char_seq_lengths = enc_char_seq_lengths.cuda(opt.gpu)
+                enc_char_seq_recover = enc_char_seq_recover.cuda(opt.gpu)
 
             dec_word_seq_tensor = dec_word_seq_tensor.cuda(opt.gpu)
             dec_word_seq_lengths = dec_word_seq_lengths.cuda(opt.gpu)
             dec_word_perm_idx = dec_word_perm_idx.cuda(opt.gpu)
             dec_word_seq_recover = dec_word_seq_recover.cuda(opt.gpu)
             dec_mask = dec_mask.cuda(opt.gpu)
-            label_tensor = label_tensor(opt.gpu)
+            label_tensor = label_tensor.cuda(opt.gpu)
 
             if opt.use_char:
-                dec_char_seq_tensor = dec_char_seq_tensor(opt.gpu)
-                dec_char_seq_lengths = dec_char_seq_lengths(opt.gpu)
-                dec_char_seq_recover = dec_char_seq_recover(opt.gpu)
+                dec_char_seq_tensor = dec_char_seq_tensor.cuda(opt.gpu)
+                dec_char_seq_lengths = dec_char_seq_lengths.cuda(opt.gpu)
+                dec_char_seq_recover = dec_char_seq_recover.cuda(opt.gpu)
 
 
     return enc_word_seq_tensor, enc_word_seq_lengths, enc_word_seq_recover, enc_pos_tensor, enc_mask, \
@@ -179,9 +179,9 @@ def my_collate_1(input_batch_list):
             enc_pos_tensor = enc_pos_tensor.cuda(opt.gpu)
 
             if opt.use_char:
-                enc_char_seq_tensor = enc_char_seq_tensor(opt.gpu)
-                enc_char_seq_lengths = enc_char_seq_lengths(opt.gpu)
-                enc_char_seq_recover = enc_char_seq_recover(opt.gpu)
+                enc_char_seq_tensor = enc_char_seq_tensor.cuda(opt.gpu)
+                enc_char_seq_lengths = enc_char_seq_lengths.cuda(opt.gpu)
+                enc_char_seq_recover = enc_char_seq_recover.cuda(opt.gpu)
 
 
         dec_word = [datapoint['dec_word'][:-1] for datapoint in input_batch_list]
@@ -194,8 +194,8 @@ def my_collate_1(input_batch_list):
             tmp_seq = torch.LongTensor([[seq]])
             tmp_l = torch.LongTensor([l])
             if opt.gpu >= 0 and torch.cuda.is_available():
-                tmp_seq = tmp_seq(opt.gpu)
-                tmp_l = tmp_l(opt.gpu)
+                tmp_seq = tmp_seq.cuda(opt.gpu)
+                tmp_l = tmp_l.cuda(opt.gpu)
             dec_word_seq_tensor.append(tmp_seq)
             label_tensor.append(tmp_l)
 
@@ -206,7 +206,7 @@ def my_collate_1(input_batch_list):
             for tmp in dec_char[0]:
                 tmp_tensor = torch.LongTensor([tmp])
                 if opt.gpu >= 0 and torch.cuda.is_available():
-                    tmp_tensor = tmp_tensor(opt.gpu)
+                    tmp_tensor = tmp_tensor.cuda(opt.gpu)
                 dec_char_seq_tensor.append(tmp_tensor)
 
         else:
@@ -220,11 +220,16 @@ def my_collate_1(input_batch_list):
 def generateDecoderInput(word, dec_word_alphabet, dec_char_alphabet):
 
     word_tensor = torch.LongTensor([[dec_word_alphabet.get_index(word)]])
+    if opt.gpu >= 0 and torch.cuda.is_available():
+        word_tensor = word_tensor.cuda(opt.gpu)
+
     if opt.use_char:
         chars = []
         for ch in word:
             chars.append(dec_char_alphabet.get_index(ch))
         char_tensor = torch.LongTensor([chars])
+        if opt.gpu >= 0 and torch.cuda.is_available():
+            char_tensor = char_tensor.cuda(opt.gpu)
     else:
         char_tensor = None
 

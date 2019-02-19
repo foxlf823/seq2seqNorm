@@ -36,17 +36,25 @@ if __name__ == '__main__':
 
 
         pmids = load_pmid(config['ncbi_devid'])
+        # dev_documents = []
+        # for document in documents1:
+        #     if document.name in pmids:
+        #         dev_documents.append(document)
+        for document in documents1:
+            if document.name in pmids:
+                train_documents.append(document)
+
+
+        pmids = load_pmid(config['ncbi_testid'])
+        # test_documents = []
+        # for document in documents1:
+        #     if document.name in pmids:
+        #         test_documents.append(document)
         dev_documents = []
         for document in documents1:
             if document.name in pmids:
                 dev_documents.append(document)
-
-
-        pmids = load_pmid(config['ncbi_testid'])
         test_documents = []
-        for document in documents1:
-            if document.name in pmids:
-                test_documents.append(document)
 
 
         abbr_dict = load_abbr(config['ncbi_abbr'])
@@ -56,7 +64,8 @@ if __name__ == '__main__':
         logging.info("generate data points")
         train_datapoints = prepare_data(train_documents, abbr_dict, dictionary)
         dev_datapoints = prepare_data_1(dev_documents, abbr_dict, dictionary) # we use dev_datapoints and test_datapoints only for build alphabet
-        test_datapoints = prepare_data_1(test_documents, abbr_dict, dictionary)
+        if len(test_documents) != 0:
+            test_datapoints = prepare_data_1(test_documents, abbr_dict, dictionary)
 
         logging.info("build alphabet ...")
         enc_word_alphabet = Alphabet('enc_word')
@@ -75,7 +84,8 @@ if __name__ == '__main__':
         dec_word_alphabet.add('<EOS>')
         build_alphabet(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, train_datapoints)
         build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, dev_datapoints)
-        build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, test_datapoints)
+        if len(test_documents) != 0:
+            build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, test_datapoints)
         enc_word_alphabet.close()
         dec_word_alphabet.close()
         if opt.use_char:
@@ -90,7 +100,10 @@ if __name__ == '__main__':
         logging.info("transfer data points to id")
         train_ids = datapoint2id(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, train_datapoints)
         dev_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, dev_datapoints)
-        test_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, test_datapoints)
+        if len(test_documents) != 0:
+            test_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, test_datapoints)
+        else:
+            test_ids = []
 
         makedir_and_clear(opt.output)
 
