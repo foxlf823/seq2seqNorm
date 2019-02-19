@@ -215,3 +215,17 @@ def my_collate_1(input_batch_list):
     return enc_word_seq_tensor, enc_pos_tensor, \
            enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, \
            label_tensor, dec_char_seq_tensor
+
+
+def generateDecoderInput(word, dec_word_alphabet, dec_char_alphabet):
+
+    word_tensor = torch.LongTensor([[dec_word_alphabet.get_index(word)]])
+    if opt.use_char:
+        chars = []
+        for ch in word:
+            chars.append(dec_char_alphabet.get_index(ch))
+        char_tensor = torch.LongTensor([chars])
+    else:
+        char_tensor = None
+
+    return word_tensor, char_tensor

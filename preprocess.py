@@ -191,9 +191,7 @@ def word_process(word, doc_abbr_dict):
 
     return ret_words
 
-from dictionary import dictionary
-
-def prepare_data_for_one_document(document, abbr_dict):
+def prepare_data_for_one_document(document, abbr_dict, dictionary):
     datapoints = []
     doc_abbr_dict = abbr_dict.get(document.name) # doc_abbr_dict may be none
 
@@ -275,21 +273,21 @@ def prepare_data_for_one_document(document, abbr_dict):
 
 
 # all documents one list
-def prepare_data(documents, abbr_dict):
+def prepare_data(documents, abbr_dict, dictionary):
     datapoints = []
     for document in documents:
         logging.debug("prepare_data for {}".format(document.name))
-        datapoints_for_one_doc = prepare_data_for_one_document(document, abbr_dict)
+        datapoints_for_one_doc = prepare_data_for_one_document(document, abbr_dict, dictionary)
         datapoints.extend(datapoints_for_one_doc)
 
     return datapoints
 
 # one document one list
-def prepare_data_1(documents, abbr_dict):
+def prepare_data_1(documents, abbr_dict, dictionary):
     datapoints = []
     for document in documents:
         logging.debug("prepare_data for {}".format(document.name))
-        datapoints_for_one_doc = prepare_data_for_one_document(document, abbr_dict)
+        datapoints_for_one_doc = prepare_data_for_one_document(document, abbr_dict, dictionary)
         datapoints.append(datapoints_for_one_doc)
 
     return datapoints

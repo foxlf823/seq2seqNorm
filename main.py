@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from alphabet import Alphabet, build_alphabet, build_position_alphabet, datapoint2id, build_alphabet_1, datapoint2id_1
 from train import train
+from dictionary import load_ctd
+from my_utils import makedir_and_clear
 
 
 if __name__ == '__main__':
@@ -48,11 +50,13 @@ if __name__ == '__main__':
 
 
         abbr_dict = load_abbr(config['ncbi_abbr'])
+        logging.info("loading dictionary ... ")
+        dictionary = load_ctd(config['norm_dict'])
 
         logging.info("generate data points")
-        train_datapoints = prepare_data(train_documents, abbr_dict)
-        dev_datapoints = prepare_data_1(dev_documents, abbr_dict) # we use dev_datapoints and test_datapoints only for build alphabet
-        test_datapoints = prepare_data_1(test_documents, abbr_dict)
+        train_datapoints = prepare_data(train_documents, abbr_dict, dictionary)
+        dev_datapoints = prepare_data_1(dev_documents, abbr_dict, dictionary) # we use dev_datapoints and test_datapoints only for build alphabet
+        test_datapoints = prepare_data_1(test_documents, abbr_dict, dictionary)
 
         logging.info("build alphabet ...")
         enc_word_alphabet = Alphabet('enc_word')
@@ -88,7 +92,10 @@ if __name__ == '__main__':
         dev_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, dev_datapoints)
         test_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, test_datapoints)
 
-        train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet)
+        makedir_and_clear(opt.output)
+
+        train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet,
+              dictionary)
 
 
 

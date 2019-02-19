@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
-from options import opt
+from options import opt, config
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as functional
+from dataload import generateDecoderInput
+import logging
 
 class CharBiLSTM(nn.Module):
     def __init__(self, embedding):
@@ -188,13 +190,6 @@ class Decoder(nn.Module):
         # don't compute pad as loss
         self.loss_function = nn.NLLLoss(ignore_index=0, size_average=False)
 
-        # word_input = torch.LongTensor([[dec_word_alphabet.get_index("<SOS>")]])
-        # if opt.use_char:
-        #     char_input = []
-        #     for ch in "<SOS>":
-        #         char_input.append(dec_char_alphabet.get_index(ch))
-        #     char_input = torch.LongTensor([char_input])
-
         if opt.gpu >= 0 and torch.cuda.is_available():
             self.droplstm = self.droplstm.cuda(opt.gpu)
             self.lstm = self.lstm.cuda(opt.gpu)
@@ -246,7 +241,7 @@ class Decoder(nn.Module):
 
             output = self.hidden2tag(output)
 
-            score = functional.log_softmax(output.view(1, -1))
+            score = functional.log_softmax(output.view(1, -1), dim=1)
             loss += self.loss_function(score, label)
 
             _, pred = torch.max(score, 1)
@@ -256,36 +251,50 @@ class Decoder(nn.Module):
         return loss, total, correct
 
 
-
-
-
-    def forward_teacher_forcing(self, encoder_outputs, encoder_hidden,
-                                word_inputs, label_tensor,
-                                char_inputs, char_seq_lengths, char_seq_recover):
-
-        word_represent = self.wordrep(word_inputs, None, char_inputs, char_seq_lengths,
-                                      char_seq_recover)
-
-        word_represent = self.attn(word_represent, encoder_outputs)
+    def forward_infer(self, encoder_outputs, encoder_hidden, dec_word_alphabet, dec_char_alphabet):
 
         if opt.bidirect: # encoder is bidirect, decoder is single-direct
             encoder_hidden_0 = encoder_hidden[0].transpose(1, 0).view(1, 1, -1).transpose(1, 0)
             encoder_hidden_1 = encoder_hidden[1].transpose(1, 0).view(1, 1, -1).transpose(1, 0)
             encoder_hidden = (encoder_hidden_0, encoder_hidden_1)
 
-        lstm_out, hidden = self.lstm(word_represent, encoder_hidden)
-        outputs = self.droplstm(lstm_out)
+        last_hidden = encoder_hidden
 
-        outputs = self.hidden2tag(outputs)
+        preds = []
+        word_string = '<SOS>'
+        word_input, char_input = generateDecoderInput(word_string, dec_word_alphabet, dec_char_alphabet)
 
-        batch_size, dec_seq_len = word_inputs.size()
+        while len(preds) <= int(config['dict_max_name_length']):
 
-        outs = outputs.view(batch_size * dec_seq_len, -1)
-        score = functional.log_softmax(outs, 1)
-        total_loss = self.loss_function(score, label_tensor.view(batch_size * dec_seq_len))
-        total_loss = total_loss / batch_size
+            lstm_out, hidden = self.forward_one_step(encoder_outputs, last_hidden, word_input, char_input)
 
-        return total_loss, score
+            last_hidden = hidden
+
+            output = self.droplstm(lstm_out)
+
+            output = self.hidden2tag(output)
+
+            score = functional.log_softmax(output.view(1, -1), dim=1)
+
+            _, pred = torch.max(score, 1)
+
+            pred = pred.item()
+
+            if pred == 0 or pred == 1:  # we ignored pad and unk
+                logging.debug("pred == 0 or pred == 1")
+                continue
+
+            token = dec_word_alphabet.get_instance(pred)
+            if token == '<EOS>':
+                break
+
+            preds.append(token)
+
+            word_input, char_input = generateDecoderInput(token, dec_word_alphabet, dec_char_alphabet)
+
+
+        return preds
+
 
     def free_emb(self):
         freeze_net(self.wordrep.word_embedding)

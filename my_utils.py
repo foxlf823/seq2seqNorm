@@ -1,4 +1,5 @@
-
+import os
+import shutil
 
 def setList(listt, value):
     if (value not in listt) and (value != u""):
@@ -22,3 +23,11 @@ def setMapMap(keyValueListMap, key1, key2, value):
 
     setMap(valueList, key2, value)
     return
+
+
+def makedir_and_clear(dir_path):
+    if os.path.exists(dir_path):
+        shutil.rmtree(dir_path)
+        os.makedirs(dir_path)
+    else:
+        os.makedirs(dir_path)

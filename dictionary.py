@@ -3,7 +3,7 @@ from fox_tokenizer import FoxTokenizer
 from sortedcontainers import SortedSet
 from my_utils import setList
 from options import opt, config
-
+import logging
 
 
 class CTD_Dict():
@@ -24,6 +24,15 @@ class CTD_Dict():
                 return term.preferred_name
             else:
                 raise RuntimeError("can't find id")
+
+    # given name, return id
+    def getID(self, name):
+        if name in self.name2id:
+            id = self.name2id.get(name)
+            return id
+        else:
+            return None
+
 
 
 
@@ -60,6 +69,7 @@ def name_process(name, doc_abbr_dict):
 def load_ctd(file_path):
 
     dictionary = CTD_Dict()
+    max_name_length = 0
 
     with codecs.open(file_path, 'r', 'UTF-8') as fp:
         for line in fp:
@@ -88,6 +98,9 @@ def load_ctd(file_path):
             DiseaseName = name_process(DiseaseName, None)  # assume there are no abbr in the CTD
             if len(DiseaseName) == 0:
                 raise RuntimeError("len(DiseaseName) == 0")
+            else:
+                if len(DiseaseName) > max_name_length:
+                    max_name_length = len(DiseaseName)
 
             term = CTD_Term()
             for dn in DiseaseName:
@@ -103,6 +116,10 @@ def load_ctd(file_path):
                 ret_words = name_process(sm, None)
                 if len(ret_words) == 0:
                     raise RuntimeError("len(ret_words) == 0")
+                else:
+                    if len(ret_words) > max_name_length:
+                        max_name_length = len(ret_words)
+
                 sm_list = []
                 for rw in ret_words:
                     sm_list.append(rw)
@@ -124,13 +141,9 @@ def load_ctd(file_path):
                 else:
                     dictionary.altid2id[AltDiseaseIDs] = DiseaseID
 
-
+    logging.info("dictionary max_name_length: {}".format(max_name_length))
 
     return dictionary
-
-
-
-dictionary = load_ctd(config['norm_dict'])
 
 
 if __name__ == '__main__':
