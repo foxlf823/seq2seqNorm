@@ -26,7 +26,7 @@ if __name__ == '__main__':
         torch.cuda.manual_seed_all(opt.random_seed)
 
     if opt.whattodo == 1: # ncbi
-        from preprocess import load_data_pubtator, load_pmid, prepare_data, load_abbr, prepare_data_1
+        from preprocess import load_data_pubtator, load_pmid, prepare_data, load_abbr, prepare_data_1, prepare_dict_data
         documents1 = load_data_pubtator(config['ncbi_dataset'])
         pmids = load_pmid(config['ncbi_trainid'])
         train_documents = []
@@ -66,6 +66,8 @@ if __name__ == '__main__':
         dev_datapoints = prepare_data_1(dev_documents, abbr_dict, dictionary) # we use dev_datapoints and test_datapoints only for build alphabet
         if len(test_documents) != 0:
             test_datapoints = prepare_data_1(test_documents, abbr_dict, dictionary)
+        if opt.pretraining:
+            dict_datapoints = prepare_dict_data(dictionary)
 
         logging.info("build alphabet ...")
         enc_word_alphabet = Alphabet('enc_word')
@@ -86,6 +88,8 @@ if __name__ == '__main__':
         build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, dev_datapoints)
         if len(test_documents) != 0:
             build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, test_datapoints)
+        if opt.pretraining:
+            build_alphabet(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, dict_datapoints)
         enc_word_alphabet.close()
         dec_word_alphabet.close()
         if opt.use_char:
@@ -105,9 +109,14 @@ if __name__ == '__main__':
         else:
             test_ids = []
 
+        if opt.pretraining:
+            dict_ids = datapoint2id(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, dict_datapoints)
+        else:
+            dict_ids = []
+
         makedir_and_clear(opt.output)
 
-        train(train_ids, dev_ids, test_ids, enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet,
+        train(train_ids, dev_ids, test_ids, dict_ids, enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet,
               dictionary)
 
 

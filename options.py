@@ -23,6 +23,8 @@ parser.add_argument('-use_char', action='store_true', default=False)
 parser.add_argument('-bidirect', action='store_true', default=False)
 parser.add_argument('-use_teacher_forcing', action='store_true', default=False)
 parser.add_argument('-pos_emb_dim', type=int, default=20)
+parser.add_argument('-pretraining', action='store_true', default=False)
+parser.add_argument('-expected_accuracy', type=int, default=95)
 
 opt = parser.parse_args()
 

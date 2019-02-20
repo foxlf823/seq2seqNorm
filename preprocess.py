@@ -316,7 +316,56 @@ def prepare_data_1(documents, abbr_dict, dictionary):
 
     return datapoints
 
+import copy
+def prepare_dict_data(dictionary):
+    datapoints = []
+    for id, term in dictionary.id2name.items():
+        for synonym in term.synonyms:
 
+            datapoint = {}  # one synonym is a datapoint
+
+            encoder_word = copy.deepcopy(synonym)  # synonym
+            encoder_position = [0]*len(synonym)  # all positions are zeroes
+            if opt.use_char:
+                encoder_char = []  # list of list
+                for word in encoder_word:
+                    char_of_the_word = []
+                    for ch in word:
+                        char_of_the_word.append(ch)
+                    encoder_char.append(char_of_the_word)
+
+            if len(encoder_word) == 0:
+                raise RuntimeError("len(encoder_sent) == 0")
+
+            datapoint['enc_word'] = encoder_word
+            datapoint['enc_pos'] = encoder_position
+            if opt.use_char:
+                datapoint['enc_char'] = encoder_char
+
+            decoder_word = copy.deepcopy(term.preferred_name)  # preferred name
+
+            if len(decoder_word) == 0:
+                raise RuntimeError("len(decoder_sent) == 0")
+
+            decoder_word.insert(0, '<SOS>')  # this is used for teacher-forcing training
+            decoder_word.append('<EOS>')  # this is used for determing when decoding should end
+            datapoint['dec_word'] = decoder_word
+
+            if opt.use_char:
+                decoder_char = []
+                for word in decoder_word:
+                    char_of_the_word = []
+                    for ch in word:
+                        char_of_the_word.append(ch)
+
+                    decoder_char.append(char_of_the_word)
+
+                datapoint['dec_char'] = decoder_char
+
+
+            datapoints.append(datapoint)
+
+    return datapoints
 
 
 
