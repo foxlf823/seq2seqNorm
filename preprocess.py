@@ -2,14 +2,18 @@
 import codecs
 from data_structure import Document, Entity
 from fox_tokenizer import FoxTokenizer
-import nltk
-nlp_tool = nltk.data.load('tokenizers/punkt/english.pickle')
-# from nltk.stem import WordNetLemmatizer
-# wnl = WordNetLemmatizer()
 import logging
 from my_utils import setMapMap
 from stopword import stop_word
 from options import opt
+import nltk
+nlp_tool = nltk.data.load('tokenizers/punkt/english.pickle')
+if opt.wp == 'lemma':
+    from nltk.stem import WordNetLemmatizer
+    wnl = WordNetLemmatizer()
+elif opt.wp == "stem":
+    # stemer = nltk.LancasterStemmer()
+    stemer = nltk.PorterStemmer()
 
 
 def load_data_pubtator(file_path):
@@ -200,16 +204,21 @@ def word_process(word, doc_abbr_dict):
             if w in stop_word:
                 continue
 
-            # lemma
-            # w = wnl.lemmatize(w)
+            if opt.wp == 'lemma':
+                w = wnl.lemmatize(w)
+            elif opt.wp == 'stem':
+                w = stemer.stem(w)
 
             ret_words.append(w)
 
     else:
         w = word.lower()
         if w not in stop_word:
-            # lemma
-            # w = wnl.lemmatize(w)
+
+            if opt.wp == 'lemma':
+                w = wnl.lemmatize(w)
+            elif opt.wp == 'stem':
+                w = stemer.stem(w)
 
             ret_words.append(w)
 

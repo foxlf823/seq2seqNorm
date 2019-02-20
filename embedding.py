@@ -3,6 +3,8 @@ import numpy as np
 import re
 import codecs
 import torch
+from options import opt
+import nltk
 
 def _readString(f, code):
     # s = unicode()
@@ -50,6 +52,11 @@ def _readFloat(f):
 def load_pretrain_emb(embedding_path):
     embedd_dim = -1
     embedd_dict = dict()
+    stem_to_word = dict()
+    if opt.wp == "stem":
+        # stemer = nltk.LancasterStemmer()
+        stemer = nltk.PorterStemmer()
+
     # emb_debug = []
     if embedding_path.find('.bin') != -1:
         with open(embedding_path, 'rb') as f:
@@ -71,6 +78,8 @@ def load_pretrain_emb(embedding_path):
                 # except Exception , e:
                 #     pass
                 embedd_dict[word] = word_vector
+                if opt.wp == 'stem':
+                    stem_to_word[stemer.stem(word)] = word
     else:
         with codecs.open(embedding_path, 'r', 'UTF-8') as file:
         # with open(embedding_path, 'r') as file:
@@ -93,9 +102,10 @@ def load_pretrain_emb(embedding_path):
                 embedd = np.zeros([1, embedd_dim])
                 embedd[:] = tokens[1:]
                 embedd_dict[tokens[0]] = embedd
-                # embedd_dict[tokens[0].decode('utf-8')] = embedd
+                if opt.wp == 'stem':
+                    stem_to_word[stemer.stem(tokens[0])] = tokens[0]
 
-    return embedd_dict, embedd_dim
+    return embedd_dict, embedd_dim, stem_to_word
 
 def norm2one(vec):
     root_sum_square = np.sqrt(np.sum(np.square(vec)))
@@ -103,7 +113,7 @@ def norm2one(vec):
 
 def build_pretrain_embedding(embedding_path, word_alphabet, norm):
 
-    embedd_dict, embedd_dim = load_pretrain_emb(embedding_path)
+    embedd_dict, embedd_dim, stem_to_word = load_pretrain_emb(embedding_path)
     alphabet_size = word_alphabet.size()-1 # minus pad token
     logging.info("alphabet size {}".format(alphabet_size))
     scale = np.sqrt(3.0 / embedd_dim)
@@ -120,17 +130,39 @@ def build_pretrain_embedding(embedding_path, word_alphabet, norm):
             else:
                 pretrain_emb[index,:] = embedd_dict[word]
             perfect_match += 1
+        ###
+        elif word in stem_to_word and stem_to_word[word] in embedd_dict:
+            if norm:
+                pretrain_emb[index,:] = norm2one(embedd_dict[stem_to_word[word]])
+            else:
+                pretrain_emb[index,:] = embedd_dict[stem_to_word[word]]
+            perfect_match += 1
+        ###
         elif word.lower() in embedd_dict:
             if norm:
                 pretrain_emb[index,:] = norm2one(embedd_dict[word.lower()])
             else:
                 pretrain_emb[index,:] = embedd_dict[word.lower()]
             case_match += 1
+        elif word.lower() in stem_to_word and stem_to_word[word.lower()] in embedd_dict:
+            if norm:
+                pretrain_emb[index,:] = norm2one(embedd_dict[stem_to_word[word.lower()]])
+            else:
+                pretrain_emb[index,:] = embedd_dict[stem_to_word[word.lower()]]
+            case_match += 1
+
         elif re.sub('\d', '0', word) in embedd_dict:
             if norm:
                 pretrain_emb[index,:] = norm2one(embedd_dict[re.sub('\d', '0', word)])
             else:
                 pretrain_emb[index,:] = embedd_dict[re.sub('\d', '0', word)]
+            digits_replaced_with_zeros_found += 1
+
+        elif re.sub('\d', '0', word) in stem_to_word and stem_to_word[re.sub('\d', '0', word)] in embedd_dict:
+            if norm:
+                pretrain_emb[index,:] = norm2one(embedd_dict[stem_to_word[re.sub('\d', '0', word)]])
+            else:
+                pretrain_emb[index,:] = embedd_dict[stem_to_word[re.sub('\d', '0', word)]]
             digits_replaced_with_zeros_found += 1
         elif re.sub('\d', '0', word.lower()) in embedd_dict:
             if norm:
@@ -138,6 +170,14 @@ def build_pretrain_embedding(embedding_path, word_alphabet, norm):
             else:
                 pretrain_emb[index,:] = embedd_dict[re.sub('\d', '0', word.lower())]
             lowercase_and_digits_replaced_with_zeros_found += 1
+
+        elif re.sub('\d', '0', word.lower()) in stem_to_word and stem_to_word[re.sub('\d', '0', word.lower())] in embedd_dict:
+            if norm:
+                pretrain_emb[index,:] = norm2one(embedd_dict[stem_to_word[re.sub('\d', '0', word.lower())]])
+            else:
+                pretrain_emb[index,:] = embedd_dict[stem_to_word[re.sub('\d', '0', word.lower())]]
+            lowercase_and_digits_replaced_with_zeros_found += 1
+
         else:
             pretrain_emb[index,:] = np.random.uniform(-scale, scale, [1, embedd_dim])
             not_match += 1

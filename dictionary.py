@@ -28,8 +28,8 @@ class CTD_Dict():
     # given name, return id
     def getID(self, name):
         if name in self.name2id:
-            id = self.name2id.get(name)
-            return id
+            id_list = self.name2id.get(name)
+            return id_list[0] # if one name corresponds to multiple ids, use the first
         else:
             return None
 
@@ -111,11 +111,12 @@ def load_ctd(file_path):
 
             key_name = tokenlist2key(term.preferred_name)
             if key_name in dictionary.name2id:
-                # raise RuntimeError('key_name in dictionary.name2id')
+                # after preprocessing, one name may correspond to multiple id
                 logging.debug("id {} key_name {} exists".format(DiseaseID, key_name))
-                continue
+                id_list = dictionary.name2id[key_name]
+                id_list.append(DiseaseID)
             else:
-                dictionary.name2id[key_name] = DiseaseID
+                dictionary.name2id[key_name] = [DiseaseID]
 
             if len(Synonyms) != 0:
                 for sm in Synonyms.split('|'):
