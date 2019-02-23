@@ -1,8 +1,8 @@
 from torch.utils.data import DataLoader
-from dataload import MyDataset, my_collate_1
+from dataload import MyDataset, my_collate_1, my_collate
 from options import opt, config
 from embedding import initialize_emb
-from model import Encoder, Decoder
+from model import Encoder, Decoder, AttnNet
 import torch.optim as optim
 import logging
 import time
@@ -14,7 +14,10 @@ def train(train_ids, dev_ids, test_ids, dict_ids, enc_word_alphabet, enc_char_al
           dictionary):
 
     enc_word_emb = initialize_emb(config.get('word_emb'), enc_word_alphabet, opt.word_emb_dim)
-    pos_emb = initialize_emb(None, position_alphabet, opt.pos_emb_dim)
+    if position_alphabet is not None:
+        pos_emb = initialize_emb(None, position_alphabet, opt.pos_emb_dim)
+    else:
+        pos_emb = None
     if opt.use_char:
         enc_char_emb = initialize_emb(config.get('char_emb'), enc_char_alphabet, opt.char_emb_dim)
     else:
@@ -22,18 +25,23 @@ def train(train_ids, dev_ids, test_ids, dict_ids, enc_word_alphabet, enc_char_al
 
     encoder = Encoder(enc_word_emb, pos_emb, enc_char_emb)
 
-    dec_word_emb = initialize_emb(config.get('word_emb'), dec_word_alphabet, opt.word_emb_dim)
-    if opt.use_char:
-        dec_char_emb = initialize_emb(config.get('char_emb'), dec_char_alphabet, opt.char_emb_dim)
+    if opt.method == 'cla':
+        decoder = AttnNet(dictionary)
+
+        train_loader = DataLoader(MyDataset(train_ids), opt.batch_size, shuffle=True, collate_fn=my_collate)
     else:
-        dec_char_emb = None
+        dec_word_emb = initialize_emb(config.get('word_emb'), dec_word_alphabet, opt.word_emb_dim)
+        if opt.use_char:
+            dec_char_emb = initialize_emb(config.get('char_emb'), dec_char_alphabet, opt.char_emb_dim)
+        else:
+            dec_char_emb = None
 
-    decoder = Decoder(dec_word_emb, dec_char_emb, dec_word_alphabet)
+        decoder = Decoder(dec_word_emb, dec_char_emb, dec_word_alphabet)
 
-    # train_loader = DataLoader(MyDataset(train_ids), opt.batch_size, shuffle=True, collate_fn=my_collate)
-    if opt.batch_size != 1:
-        raise RuntimeError("currently, only support batch size 1")
-    train_loader = DataLoader(MyDataset(train_ids), opt.batch_size, shuffle=True, collate_fn=my_collate_1)
+
+        if opt.batch_size != 1:
+            raise RuntimeError("currently, only support batch size 1")
+        train_loader = DataLoader(MyDataset(train_ids), opt.batch_size, shuffle=True, collate_fn=my_collate_1)
 
     optimizer = optim.Adam(itertools.chain(encoder.parameters(), decoder.parameters()), lr=opt.lr, weight_decay=opt.l2)
 
@@ -42,7 +50,11 @@ def train(train_ids, dev_ids, test_ids, dict_ids, enc_word_alphabet, enc_char_al
         decoder.free_emb()
 
     if opt.pretraining:
-        dict_loader = DataLoader(MyDataset(dict_ids), opt.batch_size, shuffle=True, collate_fn=my_collate_1)
+
+        if opt.method == 'cla':
+            dict_loader = DataLoader(MyDataset(dict_ids), opt.batch_size, shuffle=True, collate_fn=my_collate)
+        else:
+            dict_loader = DataLoader(MyDataset(dict_ids), opt.batch_size, shuffle=True, collate_fn=my_collate_1)
 
         logging.info("start dict pretraining ...")
         logging.info("dict pretraining datapoints: {}".format(len(dict_ids)))
@@ -64,17 +76,30 @@ def train(train_ids, dev_ids, test_ids, dict_ids, enc_word_alphabet, enc_char_al
             num_iter = len(dict_loader)
 
             for i in range(num_iter):
-                enc_word_seq_tensor, enc_pos_tensor, \
-                enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, \
-                label_tensor, dec_char_seq_tensor = next(train_iter)
 
-                encoder_outputs, encoder_hidden = encoder.forward(enc_word_seq_tensor, enc_pos_tensor, \
-                                                                  enc_char_seq_tensor, enc_char_seq_lengths,
-                                                                  enc_char_seq_recover)
+                if opt.method == 'cla':
+                    enc_word_seq_tensor, enc_word_seq_lengths, enc_word_seq_recover, enc_mask, \
+                    enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, label_tensor = next(train_iter)
 
-                loss, total_this_batch, correct_this_batch = decoder.forward_train(encoder_outputs, encoder_hidden,
-                                                                                   dec_word_seq_tensor, label_tensor,
-                                                                                   dec_char_seq_tensor)
+                    encoder_outputs, _ = encoder.forward_batch(enc_word_seq_tensor, enc_word_seq_lengths, \
+                                                                      enc_char_seq_tensor, enc_char_seq_lengths,
+                                                                      enc_char_seq_recover)
+
+                    loss, total_this_batch, correct_this_batch = decoder.forward_train(encoder_outputs, enc_word_seq_lengths, label_tensor)
+
+                else:
+
+                    enc_word_seq_tensor, enc_pos_tensor, \
+                    enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, \
+                    label_tensor, dec_char_seq_tensor = next(train_iter)
+
+                    encoder_outputs, encoder_hidden = encoder.forward(enc_word_seq_tensor, enc_pos_tensor, \
+                                                                      enc_char_seq_tensor, enc_char_seq_lengths,
+                                                                      enc_char_seq_recover)
+
+                    loss, total_this_batch, correct_this_batch = decoder.forward_train(encoder_outputs, encoder_hidden,
+                                                                                       dec_word_seq_tensor, label_tensor,
+                                                                                       dec_char_seq_tensor)
 
                 sum_loss += loss.item()
 
@@ -137,17 +162,28 @@ def train(train_ids, dev_ids, test_ids, dict_ids, enc_word_alphabet, enc_char_al
         correct, total = 0, 0
 
         for i in range(num_iter):
-            enc_word_seq_tensor, enc_pos_tensor, \
-            enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, \
-            label_tensor, dec_char_seq_tensor = next(train_iter)
+            if opt.method == 'cla':
+                enc_word_seq_tensor, enc_word_seq_lengths, enc_word_seq_recover, enc_mask, \
+                enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, label_tensor = next(train_iter)
 
-            encoder_outputs, encoder_hidden = encoder.forward(enc_word_seq_tensor, enc_pos_tensor, \
-                enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover)
+                encoder_outputs, _ = encoder.forward_batch(enc_word_seq_tensor, enc_word_seq_lengths, \
+                                                           enc_char_seq_tensor, enc_char_seq_lengths,
+                                                           enc_char_seq_recover)
+
+                loss, total_this_batch, correct_this_batch = decoder.forward_train(encoder_outputs,
+                                                                                   enc_word_seq_lengths, label_tensor)
+            else:
+                enc_word_seq_tensor, enc_pos_tensor, \
+                enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, dec_word_seq_tensor, \
+                label_tensor, dec_char_seq_tensor = next(train_iter)
+
+                encoder_outputs, encoder_hidden = encoder.forward(enc_word_seq_tensor, enc_pos_tensor, \
+                    enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover)
 
 
-            loss, total_this_batch, correct_this_batch = decoder.forward_train(encoder_outputs, encoder_hidden,
-                                                              dec_word_seq_tensor, label_tensor,
-                                                              dec_char_seq_tensor)
+                loss, total_this_batch, correct_this_batch = decoder.forward_train(encoder_outputs, encoder_hidden,
+                                                                  dec_word_seq_tensor, label_tensor,
+                                                                  dec_char_seq_tensor)
 
             sum_loss += loss.item()
 
@@ -170,7 +206,10 @@ def train(train_ids, dev_ids, test_ids, dict_ids, enc_word_alphabet, enc_char_al
 
 
         if dev_ids is not None and len(dev_ids) != 0:
-            p, r, f = evaluate(dev_ids, encoder, decoder, dec_word_alphabet, dec_char_alphabet, dictionary)
+            if opt.method == 'cla':
+                p, r, f = evaluate_cla(dev_ids, encoder, decoder, dictionary)
+            else:
+                p, r, f = evaluate(dev_ids, encoder, decoder, dec_word_alphabet, dec_char_alphabet, dictionary)
             logging.info("Dev: p: %.4f, r: %.4f, f: %.4f" % (p, r, f))
         else:
             f = best_dev_f
@@ -191,7 +230,10 @@ def train(train_ids, dev_ids, test_ids, dict_ids, enc_word_alphabet, enc_char_al
             torch.save(position_alphabet, os.path.join(opt.output, "position_alphabet.pkl"))
 
             if test_ids is not None and len(test_ids) != 0:
-                p, r, f = evaluate(test_ids, encoder, decoder, dec_word_alphabet, dec_char_alphabet, dictionary)
+                if opt.method == 'cla':
+                    p, r, f = evaluate_cla(test_ids, encoder, decoder, dictionary)
+                else:
+                    p, r, f = evaluate(test_ids, encoder, decoder, dec_word_alphabet, dec_char_alphabet, dictionary)
                 logging.info("Test: p: %.4f, r: %.4f, f: %.4f" % (p, r, f))
 
         else:
@@ -296,4 +338,63 @@ def tokenlist2key_1(token_list):
     rets.append(ret)
 
     return rets
+
+
+def evaluate_cla(datapoints, encoder, decoder, dictionary):
+    encoder.eval()
+    decoder.eval()
+
+    ct_predicted = 0
+    ct_gold = 0
+    ct_correct = 0
+
+    for datapoint_for_one_doc in datapoints:
+
+        gold_id_set = set()
+
+        predict_id_set = set()
+
+        for datapoint in datapoint_for_one_doc:
+            # get gold id
+            gold_id = dictionary.id_alphabet.get_instance(datapoint['dec_id'])
+            gold_id_set.add(gold_id)
+            # get predict id
+            enc_word_seq_tensor, enc_word_seq_lengths, enc_word_seq_recover, enc_mask, \
+            enc_char_seq_tensor, enc_char_seq_lengths, enc_char_seq_recover, label_tensor = my_collate([datapoint])
+
+            encoder_outputs, _ = encoder.forward_batch(enc_word_seq_tensor, enc_word_seq_lengths, \
+                                                       enc_char_seq_tensor, enc_char_seq_lengths,
+                                                       enc_char_seq_recover)
+
+            preds = decoder.forward_infer(encoder_outputs, enc_word_seq_lengths)
+
+            if preds[0].item() == 0 or preds[0].item() == 1:
+                logging.debug("pred == 0 or pred == 1")
+                continue
+
+            predict_id = dictionary.id_alphabet.get_instance(preds[0].item())
+            predict_id_set.add(predict_id)
+
+
+        ct_gold += len(gold_id_set)
+        ct_predicted += len(predict_id_set)
+        ct_correct += len(gold_id_set & predict_id_set)
+
+
+
+
+    if ct_gold == 0 or ct_predicted == 0:
+        precision = 0
+        recall = 0
+    else:
+        precision = ct_correct * 1.0 / ct_predicted
+        recall = ct_correct * 1.0 / ct_gold
+
+    if precision+recall == 0:
+        f_measure = 0
+    else:
+        f_measure = 2*precision*recall/(precision+recall)
+
+    return precision, recall, f_measure
+
 

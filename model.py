@@ -116,7 +116,7 @@ class Encoder(nn.Module):
             self.droplstm = self.droplstm.cuda(opt.gpu)
             self.lstm = self.lstm.cuda(opt.gpu)
 
-
+    # for batch 1
     def forward(self, word_inputs, pos_inputs, char_inputs, char_seq_lengths, char_seq_recover):
 
         word_represent = self.wordrep(word_inputs, pos_inputs, char_inputs, char_seq_lengths, char_seq_recover)
@@ -125,6 +125,19 @@ class Encoder(nn.Module):
         lstm_out, hidden = self.lstm(word_represent, hidden)
 
         outputs = self.droplstm(lstm_out)
+
+        return outputs, hidden
+
+    def forward_batch(self, word_inputs, word_seq_lengths, char_inputs, char_seq_lengths, char_seq_recover):
+
+        word_represent = self.wordrep(word_inputs, None, char_inputs, char_seq_lengths,
+                                      char_seq_recover)
+
+        packed_words = pack_padded_sequence(word_represent, word_seq_lengths.cpu().numpy(), True)
+        hidden = None
+        lstm_out, hidden = self.lstm(packed_words, hidden)
+        lstm_out, _ = pad_packed_sequence(lstm_out)
+        outputs = self.droplstm(lstm_out.transpose(1, 0))
 
         return outputs, hidden
 
@@ -310,3 +323,67 @@ def freeze_net(net):
         return
     for p in net.parameters():
         p.requires_grad = False
+
+
+class DotAttentionLayer(nn.Module):
+    def __init__(self, hidden_size):
+        super(DotAttentionLayer, self).__init__()
+        self.hidden_size = hidden_size
+        self.W = nn.Linear(hidden_size, 1, bias=False)
+
+    def forward(self, inputs, lengths):
+        """
+        input: (unpacked_padded_output: batch_size x seq_len x hidden_size, lengths: batch_size)
+        """
+        batch_size, max_len, _ = inputs.size()
+        flat_input = inputs.contiguous().view(-1, self.hidden_size)
+        logits = self.W(flat_input).view(batch_size, max_len)
+        alphas = functional.softmax(logits, dim=1)
+
+        # computing mask
+        idxes = torch.arange(0, max_len, out=torch.LongTensor(max_len)).unsqueeze(0)
+        if opt.gpu >= 0 and torch.cuda.is_available():
+            idxes = idxes.cuda(opt.gpu)
+        mask = (idxes<lengths.unsqueeze(1)).float()
+
+        alphas = alphas * mask
+        # renormalize
+        alphas = alphas / torch.sum(alphas, 1).view(-1, 1)
+        output = torch.bmm(alphas.unsqueeze(1), inputs).squeeze(1)
+        return output
+
+class AttnNet(nn.Module):
+    def __init__(self, dictionary):
+        super(AttnNet, self).__init__()
+
+        self.attn = DotAttentionLayer(opt.hidden_dim)
+        self.linear = nn.Linear(opt.hidden_dim, dictionary.id_alphabet.size())
+        self.criterion = nn.CrossEntropyLoss()
+
+        if opt.gpu >= 0 and torch.cuda.is_available():
+            self.attn = self.attn.cuda(opt.gpu)
+            self.linear = self.linear.cuda(opt.gpu)
+
+    def forward(self, encoder_outputs, lengths):
+        output = self.attn(encoder_outputs, lengths)
+        output = self.linear(output)
+
+        return output
+
+    def forward_train(self, encoder_outputs, lengths, label):
+        score = self.forward(encoder_outputs, lengths)
+        loss = self.criterion(score, label)
+
+        total = label.size(0)
+        _, pred = torch.max(score, 1)
+        correct = (pred == label).sum().item()
+
+        return loss, total, correct
+
+    def forward_infer(self, encoder_outputs, lengths):
+        score = self.forward(encoder_outputs, lengths)
+        _, pred = torch.max(score, 1)
+        return pred
+
+    def free_emb(self):
+        pass

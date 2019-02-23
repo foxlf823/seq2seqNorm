@@ -76,41 +76,59 @@ if __name__ == '__main__':
         else:
             enc_char_alphabet = None
 
-        dec_word_alphabet = Alphabet('dec_word')
-        if opt.use_char:
-            dec_char_alphabet = Alphabet('dec_char')
-        else:
+        if opt.method == 'cla':
+            dec_word_alphabet = None
             dec_char_alphabet = None
+        else:
+            dec_word_alphabet = Alphabet('dec_word')
+            if opt.use_char:
+                dec_char_alphabet = Alphabet('dec_char')
+            else:
+                dec_char_alphabet = None
 
-        dec_word_alphabet.add('<SOS>')
-        dec_word_alphabet.add('<EOS>')
+            dec_word_alphabet.add('<SOS>')
+            dec_word_alphabet.add('<EOS>')
+
         build_alphabet(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, train_datapoints)
         build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, dev_datapoints)
         if len(test_documents) != 0:
             build_alphabet_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, test_datapoints)
         if opt.pretraining:
             build_alphabet(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, dict_datapoints)
-        enc_word_alphabet.close()
-        dec_word_alphabet.close()
-        if opt.use_char:
-            enc_char_alphabet.close()
-            dec_char_alphabet.close()
 
+        if opt.method == 'cla':
+            enc_word_alphabet.close()
+            if opt.use_char:
+                enc_char_alphabet.close()
+            position_alphabet = None
+        else:
+            enc_word_alphabet.close()
+            dec_word_alphabet.close()
+            if opt.use_char:
+                enc_char_alphabet.close()
+                dec_char_alphabet.close()
 
-        position_alphabet = Alphabet('position')
-        build_position_alphabet(position_alphabet)
-        position_alphabet.close()
+            if opt.context == 'sent':
+                position_alphabet = Alphabet('position')
+                build_position_alphabet(position_alphabet)
+                position_alphabet.close()
+            else:
+                position_alphabet = None
 
         logging.info("transfer data points to id")
-        train_ids = datapoint2id(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, train_datapoints)
-        dev_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, dev_datapoints)
+        train_ids = datapoint2id(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet,
+                                 train_datapoints, dictionary)
+        dev_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet,
+                                 dev_datapoints, dictionary)
         if len(test_documents) != 0:
-            test_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, test_datapoints)
+            test_ids = datapoint2id_1(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet,
+                                      test_datapoints, dictionary)
         else:
             test_ids = []
 
         if opt.pretraining:
-            dict_ids = datapoint2id(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet, dict_datapoints)
+            dict_ids = datapoint2id(enc_word_alphabet, enc_char_alphabet, dec_word_alphabet, dec_char_alphabet, position_alphabet,
+                                    dict_datapoints, dictionary)
         else:
             dict_ids = []
 

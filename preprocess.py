@@ -252,20 +252,49 @@ def prepare_data_for_one_document(document, abbr_dict, dictionary):
             else:
                 position = 0
 
-            precessed_words = word_process(word, doc_abbr_dict)
+            if opt.context == 'none':
+                if position == 0:
+                    precessed_words = word_process(word, doc_abbr_dict)
 
-            for pw in precessed_words:
-                encoder_word.append(pw)
-                encoder_position.append(position) # all the tokens generated from the current word use the same position.
+                    for pw in precessed_words:
+                        encoder_word.append(pw)
 
-                if opt.use_char:
-                    char_of_the_word = []
-                    for ch in pw:
-                        char_of_the_word.append(ch)
+                        if opt.use_char:
+                            char_of_the_word = []
+                            for ch in pw:
+                                char_of_the_word.append(ch)
 
-                    encoder_char.append(char_of_the_word)
+                            encoder_char.append(char_of_the_word)
+            elif opt.context == 'window':
+                if position <= 3 and position >= -3:
+                    precessed_words = word_process(word, doc_abbr_dict)
+
+                    for pw in precessed_words:
+                        encoder_word.append(pw)
+
+                        if opt.use_char:
+                            char_of_the_word = []
+                            for ch in pw:
+                                char_of_the_word.append(ch)
+
+                            encoder_char.append(char_of_the_word)
+            else:
+
+                precessed_words = word_process(word, doc_abbr_dict)
+
+                for pw in precessed_words:
+                    encoder_word.append(pw)
+                    encoder_position.append(position) # all the tokens generated from the current word use the same position.
+
+                    if opt.use_char:
+                        char_of_the_word = []
+                        for ch in pw:
+                            char_of_the_word.append(ch)
+
+                        encoder_char.append(char_of_the_word)
 
         if len(encoder_word) == 0:
+            logging.debug("document name: {}, entity name: {}".format(document.name, entity.name))
             raise RuntimeError("len(encoder_sent) == 0")
 
         datapoint['enc_word'] = encoder_word
@@ -273,31 +302,34 @@ def prepare_data_for_one_document(document, abbr_dict, dictionary):
         if opt.use_char:
             datapoint['enc_char'] = encoder_char
 
-        decoder_word = []  # concept preferred name
-        for i, id in enumerate(entity.norm_ids):
-            if i == len(entity.norm_ids) -1:
-                decoder_word.extend(dictionary.getPreferName(id))
-            else:
-                decoder_word.extend(dictionary.getPreferName(id))
-                decoder_word.append('|') # use | to seperate different preferred names
+        if opt.method == 'cla':
+            datapoint['dec_id'] = entity.norm_ids[0]
+        else:
+            decoder_word = []  # concept preferred name
+            for i, id in enumerate(entity.norm_ids):
+                if i == len(entity.norm_ids) -1:
+                    decoder_word.extend(dictionary.getPreferName(id))
+                else:
+                    decoder_word.extend(dictionary.getPreferName(id))
+                    decoder_word.append('|') # use | to seperate different preferred names
 
-        if len(decoder_word) == 0:
-            raise RuntimeError("len(decoder_sent) == 0")
+            if len(decoder_word) == 0:
+                raise RuntimeError("len(decoder_sent) == 0")
 
-        decoder_word.insert(0, '<SOS>') # this is used for teacher-forcing training
-        decoder_word.append('<EOS>') # this is used for determing when decoding should end
-        datapoint['dec_word'] = decoder_word
+            decoder_word.insert(0, '<SOS>') # this is used for teacher-forcing training
+            decoder_word.append('<EOS>') # this is used for determing when decoding should end
+            datapoint['dec_word'] = decoder_word
 
-        if opt.use_char:
-            decoder_char = []
-            for word in decoder_word:
-                char_of_the_word = []
-                for ch in word:
-                    char_of_the_word.append(ch)
+            if opt.use_char:
+                decoder_char = []
+                for word in decoder_word:
+                    char_of_the_word = []
+                    for ch in word:
+                        char_of_the_word.append(ch)
 
-                decoder_char.append(char_of_the_word)
+                    decoder_char.append(char_of_the_word)
 
-            datapoint['dec_char'] = decoder_char
+                datapoint['dec_char'] = decoder_char
 
         datapoints.append(datapoint)
 
@@ -329,12 +361,14 @@ import copy
 def prepare_dict_data(dictionary):
     datapoints = []
     for id, term in dictionary.id2name.items():
-        for synonym in term.synonyms:
-
+        if opt.method == 'cla':
             datapoint = {}  # one synonym is a datapoint
 
-            encoder_word = copy.deepcopy(synonym)  # synonym
-            encoder_position = [0]*len(synonym)  # all positions are zeroes
+            encoder_word = copy.deepcopy(term.preferred_name)  # synonym
+            if opt.context == 'sent':
+                encoder_position = [0] * len(term.preferred_name)  # all positions are zeroes
+            else:
+                encoder_position = []
             if opt.use_char:
                 encoder_char = []  # list of list
                 for word in encoder_word:
@@ -351,25 +385,58 @@ def prepare_dict_data(dictionary):
             if opt.use_char:
                 datapoint['enc_char'] = encoder_char
 
-            decoder_word = copy.deepcopy(term.preferred_name)  # preferred name
+            datapoint['dec_id'] = id
 
-            if len(decoder_word) == 0:
-                raise RuntimeError("len(decoder_sent) == 0")
+            datapoints.append(datapoint)
 
-            decoder_word.insert(0, '<SOS>')  # this is used for teacher-forcing training
-            decoder_word.append('<EOS>')  # this is used for determing when decoding should end
-            datapoint['dec_word'] = decoder_word
+        for synonym in term.synonyms:
 
+            datapoint = {}  # one synonym is a datapoint
+
+            encoder_word = copy.deepcopy(synonym)  # synonym
+            if opt.context == 'sent':
+                encoder_position = [0]*len(synonym)  # all positions are zeroes
+            else:
+                encoder_position = []
             if opt.use_char:
-                decoder_char = []
-                for word in decoder_word:
+                encoder_char = []  # list of list
+                for word in encoder_word:
                     char_of_the_word = []
                     for ch in word:
                         char_of_the_word.append(ch)
+                    encoder_char.append(char_of_the_word)
 
-                    decoder_char.append(char_of_the_word)
+            if len(encoder_word) == 0:
+                raise RuntimeError("len(encoder_sent) == 0")
 
-                datapoint['dec_char'] = decoder_char
+            datapoint['enc_word'] = encoder_word
+            datapoint['enc_pos'] = encoder_position
+            if opt.use_char:
+                datapoint['enc_char'] = encoder_char
+
+            if opt.method == 'cla':
+                datapoint['dec_id'] = id
+            else:
+
+                decoder_word = copy.deepcopy(term.preferred_name)  # preferred name
+
+                if len(decoder_word) == 0:
+                    raise RuntimeError("len(decoder_sent) == 0")
+
+                decoder_word.insert(0, '<SOS>')  # this is used for teacher-forcing training
+                decoder_word.append('<EOS>')  # this is used for determing when decoding should end
+                datapoint['dec_word'] = decoder_word
+
+                if opt.use_char:
+                    decoder_char = []
+                    for word in decoder_word:
+                        char_of_the_word = []
+                        for ch in word:
+                            char_of_the_word.append(ch)
+
+                        decoder_char.append(char_of_the_word)
+
+                    datapoint['dec_char'] = decoder_char
 
 
             datapoints.append(datapoint)

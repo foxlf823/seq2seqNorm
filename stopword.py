@@ -1,5 +1,5 @@
 import codecs
-
+from options import config
 
 
 def getStopword_fromFile(file_path):
@@ -13,4 +13,4 @@ def getStopword_fromFile(file_path):
 
     return s
 
-stop_word = getStopword_fromFile('stopwords.txt')
+stop_word = getStopword_fromFile(config['stopwords'])

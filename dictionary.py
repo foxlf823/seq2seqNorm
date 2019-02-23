@@ -2,15 +2,19 @@ import codecs
 from fox_tokenizer import FoxTokenizer
 from sortedcontainers import SortedSet
 from my_utils import setList
-from options import opt, config
+from options import opt
 import logging
-
+from alphabet import Alphabet
 
 class CTD_Dict():
     def __init__(self):
         self.name2id = {} # preferred name -> id
         self.id2name = {} # id -> CTD_Term
         self.altid2id = {} # alternative id -> id
+
+        if opt.method == 'cla':
+            self.id_alphabet = Alphabet('id')
+
 
     # given id, return prefered name (list of tokens)
     def getPreferName(self, id):
@@ -139,6 +143,9 @@ def load_ctd(file_path):
 
             dictionary.id2name[DiseaseID] = term
 
+            if opt.method == 'cla':
+                dictionary.id_alphabet.add(DiseaseID)
+
             if AltDiseaseIDs != '':
                 # if AltDiseaseIDs.find('OMIM') == -1:
                 #     raise RuntimeError("AltDiseaseIDs.find('OMIM') == -1")
@@ -153,6 +160,8 @@ def load_ctd(file_path):
                         dictionary.altid2id[alt_id] = DiseaseID
 
     logging.info("dictionary max_name_length: {}".format(max_name_length))
+    if opt.method == 'cla':
+        dictionary.id_alphabet.close()
 
     return dictionary
 

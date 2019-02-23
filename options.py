@@ -26,6 +26,8 @@ parser.add_argument('-pos_emb_dim', type=int, default=20)
 parser.add_argument('-pretraining', action='store_true', default=False)
 parser.add_argument('-expected_accuracy', type=int, default=95)
 parser.add_argument('-wp', default='none', help='none,lemma,stem')
+parser.add_argument('-context', default='sent', help='none,window,sent')
+parser.add_argument('-method', default='seq', help='seq,cla')
 
 opt = parser.parse_args()
 
