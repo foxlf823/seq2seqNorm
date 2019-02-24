@@ -59,14 +59,16 @@ def tokenlist2key(token_list):
 from preprocess import word_process
 # this function returned a SortedSet, so it helps cleaning the dictionary.
 def name_process(name, doc_abbr_dict):
-    ret_words = SortedSet()
+    # ret_words = SortedSet()
+    ret_words = list()
 
     tmp_tokens = FoxTokenizer.tokenize(0, name, True)
     for token in tmp_tokens:
         precessed_words = word_process(token, doc_abbr_dict)
 
         for pw in precessed_words:
-            ret_words.add(pw)
+            # ret_words.add(pw)
+            ret_words.append(pw)
 
     return ret_words
 
